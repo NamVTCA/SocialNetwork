@@ -1,0 +1,38 @@
+🗓️ LỊCH TRÌNH HOÀN THÀNH BACKEND ĐẾN NGÀY 7/6
+🧱 Tuần 1: 15/5 – 21/5 → Xây dựng nền tảng & chức năng chính
+ ✅ Đã xong: Kết nối MongoDB, JWT, Auth (Đăng ký / Đăng nhập), Get Me
+
+ 📌 15–16/5: Hoàn thành tính năng Get all users (có phân trang)
+
+ 📌 17–18/5: Thiết kế và tạo các collection còn lại (posts, comments, follows, notifications...)
+
+ 📌 19–21/5: Triển khai API CRUD cơ bản cho các collection
+
+⚙️ Tuần 2: 22/5 – 28/5 → Nâng cấp nghiệp vụ, truy vấn, unit test
+ 📌 22–23/5: Tích hợp search, filter nâng cao, validate DTO nâng cao
+
+ 📌 24–25/5: Viết unit test cho user, post, auth
+
+ 📌 26–28/5: Tạo tài liệu Swagger đầy đủ + thử nghiệm
+
+🚀 Tuần 3: 29/5 – 4/6 → Triển khai & mở rộng nâng cao
+ 📌 29–30/5: Deploy backend lên Render (hoặc AWS/GCP nếu muốn nâng cao)
+
+ 📌 31/5–1/6: Tích hợp Redis caching + Elasticsearch cho tìm kiếm
+
+ 📌 2–3/6: Tích hợp RabbitMQ/Kafka cho xử lý bất đồng bộ (như gửi email, xử lý upload ảnh,...)
+
+ 📌 4/6: Hoàn thiện bảo mật, middleware, JWT refresh token (nếu cần)
+
+✅ Tuần 4: 5–6/6 → Hoàn thiện cuối cùng + kiểm thử
+ 📌 Tổng hợp: Đảm bảo dữ liệu thật, mỗi collection có ít nhất 50 bản ghi (hoặc 10,000 nếu nâng cao)
+
+ 📌 Test toàn bộ API bằng Postman / Swagger
+
+ 📌 Ghi lại video demo, hướng dẫn chạy server và xuất báo cáo
+
+📌 Mẹo quan trọng:
+
+Mỗi ngày nên đẩy code lên Git + viết commit rõ ràng
+
+Luôn chạy lại toàn bộ API sau khi thêm/tách route

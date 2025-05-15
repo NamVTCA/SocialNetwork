@@ -14,7 +14,9 @@ type Repository interface {
 	Create(ctx context.Context, user *models.User) error
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
     FindByID(ctx context.Context, id string) (*models.User, error)
-	GetAllUsers() ([]*models.User, error)
+	GetAllUsers(ctx context.Context) ([]*models.User, error)
+	FindAll(ctx context.Context) ([]*models.User, error)
+	UpdateByID(ctx context.Context, id string, update bson.M) error
 }
 
 func (r *repository) FindByID(ctx context.Context, id string) (*models.User, error) {
@@ -53,27 +55,54 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*models.Use
 	return &user, err
 }
 
-func (r *repository) GetAllUsers() ([]*models.User, error) {
-	cursor, err := r.collection.Find(context.TODO(), bson.M{})
+func (r *repository) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	cursor, err := r.collection.Find(ctx, bson.M{})
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(context.TODO())
+	defer cursor.Close(ctx)
 
 	var users []*models.User
-	for cursor.Next(context.TODO()) {
-		var u models.User
-		if err := cursor.Decode(&u); err != nil {
+	for cursor.Next(ctx) {
+		var user models.User
+		if err := cursor.Decode(&user); err != nil {
 			return nil, err
 		}
-		users = append(users, &u)
+		users = append(users, &user)
 	}
 
+	return users, nil
+}
+
+func (r *repository) FindAll(ctx context.Context) ([]*models.User, error) {
+	cursor, err := r.collection.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []*models.User
+	for cursor.Next(ctx) {
+		var user models.User
+		if err := cursor.Decode(&user); err != nil {
+			return nil, err
+		}
+		users = append(users, &user)
+	}
 	if err := cursor.Err(); err != nil {
 		return nil, err
 	}
 
 	return users, nil
+}
+
+func (r *repository) UpdateByID(ctx context.Context, id string, update bson.M) error {
+	objID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+	_, err = r.collection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
+	return err
 }
 
 

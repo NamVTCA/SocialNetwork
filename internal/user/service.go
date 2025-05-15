@@ -3,7 +3,9 @@ package user
 import (
 	"context"
 	"errors"
+	"go.mongodb.org/mongo-driver/bson"
 	// "fmt"
+	"socialnetwork/dto/request"
 	"socialnetwork/pkg/auth"
 	"socialnetwork/models"
 )
@@ -12,7 +14,10 @@ type Service interface {
 	Register(ctx context.Context, user *models.User) error
 	Login(ctx context.Context, email, password string) (string, error)
 	GetByID(ctx context.Context, id string) (*models.User, error)
-	GetAllUsers() ([]*models.User, error)
+	GetAllUsers(ctx context.Context) ([]*models.User, error)
+	UpdateProfile(ctx context.Context, id string, req *request.UpdateProfileRequest) error
+	ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error
+
 }
 
 type service struct {
@@ -60,8 +65,68 @@ func (s *service) GetByID(ctx context.Context, id string) (*models.User, error) 
 	return s.repo.FindByID(ctx, id)
 }
 
-func (s *service) GetAllUsers() ([]*models.User, error) {
-	return s.repo.GetAllUsers()
+func (s *service) GetAllUsers(ctx context.Context) ([]*models.User, error) {
+	return s.repo.FindAll(ctx)
+}
+
+func (s *service) UpdateProfile(ctx context.Context, id string, req *request.UpdateProfileRequest) error {
+	update := bson.M{}
+
+	if req.DisplayName != "" {
+		update["displayName"] = req.DisplayName
+	}
+	if req.Bio != "" {
+		update["bio"] = req.Bio
+	}
+	if req.Gender != "" {
+		update["gender"] = req.Gender
+	}
+	if req.BirthDate != nil {
+		update["birthDate"] = req.BirthDate
+	}
+	if req.AvatarURL != "" {
+		update["avatarUrl"] = req.AvatarURL
+	}
+	if req.CoverURL != "" {
+		update["coverUrl"] = req.CoverURL
+	}
+	if req.Location != "" {
+		update["location"] = req.Location
+	}
+	if req.Website != "" {
+		update["website"] = req.Website
+	}
+	if req.Phone != "" {
+		update["phone"] = req.Phone
+	}
+
+	if len(update) == 0 {
+		return nil // không có gì để cập nhật
+	}
+
+	return s.repo.UpdateByID(ctx, id, update)
+}
+
+func (s *service) ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error {
+    user, err := s.repo.FindByID(ctx, userID)
+    if err != nil {
+        return err
+    }
+
+    if !auth.CheckPasswordHash(req.OldPassword, user.Password) {
+        return errors.New("mật khẩu cũ không đúng")
+    }
+
+    hashedPassword, err := auth.HashPassword(req.NewPassword)
+    if err != nil {
+        return err
+    }
+
+    update := bson.M{
+        "password": hashedPassword,
+    }
+
+    return s.repo.UpdateByID(ctx, userID, update)
 }
 
 

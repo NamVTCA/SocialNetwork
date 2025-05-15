@@ -12,5 +12,6 @@ func UserRoutes(r *gin.Engine, db *mongo.Database, handler *user.Handler) {
 	{
 		userRoutes.GET("/", handler.GetUsers)
 		userRoutes.GET("/me", middleware.JWTAuthMiddleware(), handler.GetMe)
+		userRoutes.PUT("/me", middleware.JWTAuthMiddleware(), handler.UpdateMe)
 	}
 }
