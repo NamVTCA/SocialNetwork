@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
-
+	"fmt"
 	"socialnetwork/dto/request"
 	"socialnetwork/dto/response"
 	"socialnetwork/models"
@@ -176,3 +176,40 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 
     c.JSON(http.StatusOK, gin.H{"message": "Đổi mật khẩu thành công"})
 }
+
+
+func (h *Handler) ForgotPassword(c *gin.Context) {
+	var req request.ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.service.SendForgotPasswordOTP(c.Request.Context(), req.Email)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Mã OTP đã được gửi vào email"})
+}
+
+func (h *Handler) ResetPassword(c *gin.Context) {
+    var req request.ResetPasswordRequest
+    if err := c.ShouldBindJSON(&req); err != nil {
+        fmt.Printf("BindJSON error: %v\n", err)
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    fmt.Printf("Received ResetPasswordRequest: Email=%s, OTP=%s, NewPassword=****\n", req.Email, req.OTP)
+
+    err := h.service.ResetPassword(c.Request.Context(), &req)
+    if err != nil {
+        fmt.Printf("ResetPassword error: %v\n", err)
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Đặt lại mật khẩu thành công"})
+}
+

@@ -6,8 +6,11 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	// "fmt"
 	"socialnetwork/dto/request"
-	"socialnetwork/pkg/auth"
 	"socialnetwork/models"
+	"socialnetwork/pkg/auth"
+	"socialnetwork/pkg/email"
+	"socialnetwork/internal/otp"
+	"time"
 )
 
 type Service interface {
@@ -17,16 +20,31 @@ type Service interface {
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
 	UpdateProfile(ctx context.Context, id string, req *request.UpdateProfileRequest) error
 	ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error
+	SendForgotPasswordOTP(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error
+}
 
+type OTPService interface {
+    SaveOTP(ctx context.Context, key string, code string, duration time.Duration) error
+    VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
+    DeleteOTP(ctx context.Context, key string) error
+    SendOTP(ctx context.Context, req *models.SendOTPRequest) error
 }
 
 type service struct {
-	repo Repository
+	repo        Repository
+	otpService  OTPService // interface quản lý OTP
+	emailSender email.EmailSender
 }
 
-func NewService(repo Repository) Service {
-	return &service{repo: repo}
+func NewService(repo Repository, otpService OTPService, emailSender email.EmailSender) Service {
+	return &service{
+		repo:        repo,
+		otpService:  otpService,
+		emailSender: emailSender,
+	}
 }
+
 
 func (s *service) Register(ctx context.Context, user *models.User) error {
 	hashedPassword, err := auth.HashPassword(user.Password)
@@ -108,25 +126,77 @@ func (s *service) UpdateProfile(ctx context.Context, id string, req *request.Upd
 }
 
 func (s *service) ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error {
-    user, err := s.repo.FindByID(ctx, userID)
-    if err != nil {
-        return err
-    }
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
 
-    if !auth.CheckPasswordHash(req.OldPassword, user.Password) {
-        return errors.New("mật khẩu cũ không đúng")
-    }
+	if !auth.CheckPasswordHash(req.OldPassword, user.Password) {
+		return errors.New("mật khẩu cũ không đúng")
+	}
 
-    hashedPassword, err := auth.HashPassword(req.NewPassword)
-    if err != nil {
-        return err
-    }
+	hashedPassword, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		return err
+	}
 
-    update := bson.M{
-        "password": hashedPassword,
-    }
+	update := bson.M{
+		"password": hashedPassword,
+	}
 
-    return s.repo.UpdateByID(ctx, userID, update)
+	return s.repo.UpdateByID(ctx, userID, update)
 }
 
+// Gửi mã OTP quên mật khẩu
+func (s *service) SendForgotPasswordOTP(ctx context.Context, email string) error {
+	_, err := s.repo.FindByEmail(ctx, email)
+	if err != nil {
+		return errors.New("email không tồn tại")
+	}
+
+	otpCode := otp.GenerateOTP(6)
+
+	if err := s.otpService.SaveOTP(ctx, "forgot_password:"+email, otpCode, 5*time.Minute); err != nil {
+		return err
+	}
+
+	return s.emailSender.Send(email, "Mã OTP đặt lại mật khẩu", "Mã OTP của bạn là: "+otpCode)
+}
+
+
+// Reset mật khẩu bằng OTP
+func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error {
+	// Tạo VerifyOTPRequest từ req
+	verifyReq := &models.VerifyOTPRequest{
+		Identifier: req.Email,
+		Purpose:    "forgot_password",
+		OTP:        req.OTP,
+		Channel:   "email",
+	}
+
+	// Kiểm tra OTP hợp lệ
+	if err := s.otpService.VerifyOTP(ctx, verifyReq); err != nil {
+		return errors.New("mã OTP không hợp lệ hoặc đã hết hạn")
+	}
+
+	user, err := s.repo.FindByEmail(ctx, req.Email)
+	if err != nil {
+		return errors.New("Email không tồn tại")
+	}
+
+	hashedPassword, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	update := bson.M{"password": hashedPassword}
+	if err := s.repo.UpdateByID(ctx, user.ID.Hex(), update); err != nil {
+		return err
+	}
+
+	// Xoá OTP sau khi dùng
+	s.otpService.DeleteOTP(ctx, "forgot_password:"+req.Email)
+
+	return nil
+}
 

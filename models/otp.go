@@ -10,6 +10,13 @@ type VerifyOTPRequest struct {
     Identifier string `json:"identifier" binding:"required"`
     Purpose    string `json:"purpose" binding:"required"`
     OTP        string `json:"otp" binding:"required,len=6"`
+    Channel    string `json:"channel" binding:"required"`
+}
+
+type ResetPasswordRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	OTP         string `json:"otp" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
 }
 
 type OTP struct {

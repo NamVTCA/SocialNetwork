@@ -7,6 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+
+
 func GetUsers(c *gin.Context) {
 	// Fake demo response
 	c.JSON(http.StatusOK, gin.H{
@@ -20,3 +22,5 @@ func GetMe(c *gin.Context) {
         "message": "User information retrieved successfully",
     })
 }
+
+

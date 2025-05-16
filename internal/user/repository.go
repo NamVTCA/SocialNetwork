@@ -7,17 +7,18 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-    "socialnetwork/models"
+	"socialnetwork/models"
 )
 
 type Repository interface {
 	Create(ctx context.Context, user *models.User) error
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
-    FindByID(ctx context.Context, id string) (*models.User, error)
+	FindByID(ctx context.Context, id string) (*models.User, error)
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
 	FindAll(ctx context.Context) ([]*models.User, error)
 	UpdateByID(ctx context.Context, id string, update bson.M) error
 }
+
 
 func (r *repository) FindByID(ctx context.Context, id string) (*models.User, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -104,6 +105,3 @@ func (r *repository) UpdateByID(ctx context.Context, id string, update bson.M) e
 	_, err = r.collection.UpdateOne(ctx, bson.M{"_id": objID}, bson.M{"$set": update})
 	return err
 }
-
-
-
