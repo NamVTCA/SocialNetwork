@@ -1,7 +1,7 @@
 package request
 
 type ForgotPasswordRequest struct {
-	Email string `json:"email" binding:"required,email"`
+	Email string `json:"identifier" binding:"required"` // email hoặc phone
 }
 
 type ResetPasswordRequest struct {

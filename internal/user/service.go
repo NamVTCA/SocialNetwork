@@ -9,7 +9,7 @@ import (
 	"socialnetwork/models"
 	"socialnetwork/pkg/auth"
 	"socialnetwork/pkg/email"
-	"socialnetwork/internal/otp"
+
 	"time"
 )
 
@@ -22,13 +22,16 @@ type Service interface {
 	ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error
 	SendForgotPasswordOTP(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error
+	ChangeEmailRequest(ctx context.Context, req *request.ChangeEmailRequest) error
+	VerifyEmailRequest(ctx context.Context, req *request.VerifyEmailRequest) error
 }
 
 type OTPService interface {
-    SaveOTP(ctx context.Context, key string, code string, duration time.Duration) error
-    VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
-    DeleteOTP(ctx context.Context, key string) error
-    SendOTP(ctx context.Context, req *models.SendOTPRequest) error
+	SaveOTP(ctx context.Context, key string, code string, duration time.Duration) error
+	VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
+	DeleteOTP(ctx context.Context, key string) error
+	SendOTP(ctx context.Context, req *models.SendOTPRequest) error
+	SendForgotPasswordOTP(ctx context.Context, email string) error
 }
 
 type service struct {
@@ -44,7 +47,6 @@ func NewService(repo Repository, otpService OTPService, emailSender email.EmailS
 		emailSender: emailSender,
 	}
 }
-
 
 func (s *service) Register(ctx context.Context, user *models.User) error {
 	hashedPassword, err := auth.HashPassword(user.Password)
@@ -154,15 +156,8 @@ func (s *service) SendForgotPasswordOTP(ctx context.Context, email string) error
 		return errors.New("email không tồn tại")
 	}
 
-	otpCode := otp.GenerateOTP(6)
-
-	if err := s.otpService.SaveOTP(ctx, "forgot_password:"+email, otpCode, 5*time.Minute); err != nil {
-		return err
-	}
-
-	return s.emailSender.Send(email, "Mã OTP đặt lại mật khẩu", "Mã OTP của bạn là: "+otpCode)
+	return s.otpService.SendForgotPasswordOTP(ctx, email)
 }
-
 
 // Reset mật khẩu bằng OTP
 func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error {
@@ -171,7 +166,7 @@ func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordR
 		Identifier: req.Email,
 		Purpose:    "forgot_password",
 		OTP:        req.OTP,
-		Channel:   "email",
+		Channel:    "email",
 	}
 
 	// Kiểm tra OTP hợp lệ
@@ -200,3 +195,50 @@ func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordR
 	return nil
 }
 
+func (s *service) ChangeEmailRequest(ctx context.Context, req *request.ChangeEmailRequest) error {
+	// Kiểm tra xem email mới đã tồn tại chưa
+	existingUser, err := s.repo.FindByEmail(ctx, req.NewEmail)
+	if err == nil && existingUser != nil {
+		return errors.New("email mới đã tồn tại")
+	}
+
+	// Gửi mã OTP đến email mới
+	err = s.otpService.SendOTP(ctx, &models.SendOTPRequest{
+		Identifier: req.NewEmail,
+		Purpose:    "change_email",
+		Channel:    "email",
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *service) VerifyEmailRequest(ctx context.Context, req *request.VerifyEmailRequest) error {
+	// Kiểm tra OTP
+	verifyReq := &models.VerifyOTPRequest{
+		Identifier: req.NewEmail,
+		Purpose:    "change_email",
+		OTP:        req.OTP,
+		Channel:    "email",
+	}
+
+	if err := s.otpService.VerifyOTP(ctx, verifyReq); err != nil {
+		return errors.New("mã OTP không hợp lệ hoặc đã hết hạn")
+	}
+
+	user, err := s.repo.FindByID(ctx, req.UserID)
+	if err != nil {
+		return errors.New("người dùng không tồn tại")
+	}
+
+	update := bson.M{"email": req.NewEmail}
+	if err := s.repo.UpdateByID(ctx, user.ID.Hex(), update); err != nil {
+		return err
+	}
+
+	s.otpService.DeleteOTP(ctx, "change_email:"+req.NewEmail)
+
+	return nil
+}

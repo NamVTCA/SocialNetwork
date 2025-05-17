@@ -1,14 +1,18 @@
 package routes
 
 import (
+    "socialnetwork/internal/post"
     "github.com/gin-gonic/gin"
-    "go.mongodb.org/mongo-driver/mongo"
-    "socialnetwork/controllers"
+    "socialnetwork/pkg/middleware"
 )
 
-func PostRoutes(r *gin.Engine, db *mongo.Client) {
-    postRoutes := r.Group("/posts")
+func PostRoutes(r *gin.Engine, postHandler *post.PostHandler) {
+    posts := r.Group("/posts")
     {
-        postRoutes.GET("/", controllers.GetPosts)
+        posts.POST("", middleware.JWTAuthMiddleware(), postHandler.CreatePost)
+        posts.GET("/:id", postHandler.GetPost)
+        posts.PUT("/:id", middleware.JWTAuthMiddleware(), postHandler.UpdatePost)
+        posts.DELETE("/:id", middleware.JWTAuthMiddleware(), postHandler.DeletePost)
+        posts.GET("", postHandler.ListPosts)
     }
 }

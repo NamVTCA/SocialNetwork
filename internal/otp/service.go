@@ -19,6 +19,7 @@ type Service interface {
 	VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
 	DeleteOTP(ctx context.Context, key string) error
 	SendOTP(ctx context.Context, req *models.SendOTPRequest) error
+	SendForgotPasswordOTP(ctx context.Context, email string) error
 }
 
 type service struct {
@@ -73,7 +74,7 @@ func (s *service) SendOTP(ctx context.Context, req *models.SendOTPRequest) error
 	key := fmt.Sprintf("otp:%s:%s", normalizedID, req.Purpose)
 	expire := 5 * time.Minute
 
-	fmt.Printf("[DEBUG][SendOTP] key = %s, otp = %s\n", key, otp)
+	// fmt.Printf("[DEBUG][SendOTP] key = %s, otp = %s\n", key, otp)
 
 	if err := s.redisClient.Set(ctx, key, otp, expire).Err(); err != nil {
 		return err
@@ -83,10 +84,10 @@ func (s *service) SendOTP(ctx context.Context, req *models.SendOTPRequest) error
 
 	switch req.Channel {
 	case "email":
-		fmt.Println("[DEBUG][SendOTP] Sending OTP via email")
+		// fmt.Println("[DEBUG][SendOTP] Sending OTP via email")
 		return s.emailSender.Send(req.Identifier, "OTP Verification", message)
 	case "phone":
-		fmt.Println("[DEBUG][SendOTP] Sending OTP via SMS")
+		// fmt.Println("[DEBUG][SendOTP] Sending OTP via SMS")
 		return s.smsSender.Send(normalizedID, message)
 	default:
 		return errors.New("invalid channel")
@@ -103,7 +104,7 @@ func (s *service) DeleteOTP(ctx context.Context, key string) error {
 }
 
 func (s *service) VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error {
-	fmt.Printf("[DEBUG][VerifyOTP] identifier = %s, purpose = %s, input OTP = %s\n", req.Identifier, req.Purpose, req.OTP)
+	// fmt.Printf("[DEBUG][VerifyOTP] identifier = %s, purpose = %s, input OTP = %s\n", req.Identifier, req.Purpose, req.OTP)
 
 	// ✅ Chuẩn hóa lại identifier theo đúng channel
 	normalizedID, err := normalizeIdentifier(req.Channel, req.Identifier)
@@ -115,17 +116,27 @@ func (s *service) VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) e
 
 	storedOTP, err := s.redisClient.Get(ctx, key).Result()
 	if err != nil {
-		fmt.Printf("[DEBUG][VerifyOTP] Không tìm thấy OTP trong Redis với key = %s\n", key)
+		// fmt.Printf("[DEBUG][VerifyOTP] Không tìm thấy OTP trong Redis với key = %s\n", key)
 		return errors.New("mã OTP không hợp lệ hoặc đã hết hạn")
 	}
 
-	fmt.Printf("[DEBUG][VerifyOTP] stored OTP = %s\n", storedOTP)
+	// fmt.Printf("[DEBUG][VerifyOTP] stored OTP = %s\n", storedOTP)
 
 	if storedOTP != req.OTP {
-		fmt.Println("[DEBUG][VerifyOTP] OTP KHÔNG khớp!")
+		// fmt.Println("[DEBUG][VerifyOTP] OTP KHÔNG khớp!")
 		return errors.New("mã OTP không chính xác")
 	}
 
-	fmt.Println("[DEBUG][VerifyOTP] OTP hợp lệ.")
+	// fmt.Println("[DEBUG][VerifyOTP] OTP hợp lệ.")
 	return nil
+}
+
+
+func (s *service) SendForgotPasswordOTP(ctx context.Context, email string) error {
+	req := &models.SendOTPRequest{
+		Identifier: email,
+		Purpose:    "forgot_password",
+		Channel:    "email",
+	}
+	return s.SendOTP(ctx, req)
 }

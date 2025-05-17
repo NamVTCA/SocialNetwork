@@ -201,7 +201,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
-    fmt.Printf("Received ResetPasswordRequest: Email=%s, OTP=%s, NewPassword=****\n", req.Email, req.OTP)
+    // fmt.Printf("Received ResetPasswordRequest: Email=%s, OTP=%s, NewPassword=****\n", req.Email, req.OTP)
 
     err := h.service.ResetPassword(c.Request.Context(), &req)
     if err != nil {
@@ -213,3 +213,34 @@ func (h *Handler) ResetPassword(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "Đặt lại mật khẩu thành công"})
 }
 
+func (h *Handler) ChangeEmailRequest(c *gin.Context) {
+	var req request.ChangeEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.service.ChangeEmailRequest(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Yêu cầu thay đổi email đã được gửi"})
+}
+
+func (h *Handler) VerifyEmailRequest(c *gin.Context) {
+	var req request.VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	err := h.service.VerifyEmailRequest(c.Request.Context(), &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Thay đổi email thành công"})
+}

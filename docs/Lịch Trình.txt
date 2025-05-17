@@ -1,10 +1,10 @@
 🗓️ LỊCH TRÌNH HOÀN THÀNH BACKEND ĐẾN NGÀY 7/6
 🧱 Tuần 1: 15/5 – 21/5 → Xây dựng nền tảng & chức năng chính
- ✅ Đã xong: Kết nối MongoDB, JWT, Auth (Đăng ký / Đăng nhập), Get Me(Token),OTP email,phone,
+ ✅ Đã xong: Kết nối MongoDB, JWT, Auth (Đăng ký / Đăng nhập), Get Me(Token),OTP email,phone,Change-Password,ResetPassword,ChangeEmail
 
  ✅ 15–16/5: Hoàn thành tính năng Get all users (có phân trang)
 
- 📌 17–18/5: Thiết kế và tạo các collection còn lại (posts, comments, follows, notifications...)
+ 📌 17–18/5: Thiết kế và tạo các collection còn lại (✅posts, comments, follows, notifications...)
 
  📌 19–21/5: Triển khai API CRUD cơ bản cho các collection
 

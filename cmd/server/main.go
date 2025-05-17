@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"socialnetwork/internal/otp"
+	"socialnetwork/internal/post"
 	"socialnetwork/internal/user"
 	"socialnetwork/pkg/config"
 	"socialnetwork/pkg/email"
@@ -72,6 +73,9 @@ func main() {
 	// 4. Khởi tạo handler
 	userHandler := user.NewHandler(userService)
 	otpHandler := otp.NewOTPHandler(otpService)
+	postRepo := post.NewPostRepository(db, "posts")
+	postService := post.NewPostService(postRepo)
+	postHandler := post.NewPostHandler(postService)
 
 	// --- Thiết lập Gin ---
 	gin.SetMode(gin.ReleaseMode)
@@ -87,6 +91,7 @@ func main() {
 	r.POST("/login", userHandler.Login)
 	routes.UserRoutes(r, db, userHandler)
 	routes.OTProutes(r, otpHandler)
+	routes.PostRoutes(r, postHandler)
 
 	// Khởi động server
 	port := os.Getenv("PORT")

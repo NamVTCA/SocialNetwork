@@ -10,6 +10,6 @@ func OTProutes(r *gin.Engine, otpHandler *otp.OTPHandler) {
 	{
 		otpGroup.POST("/send", otpHandler.SendOTP)
 		otpGroup.POST("/verify", otpHandler.VerifyOTP)
-		otpGroup.GET("/debugget", otpHandler.DebugGetOTP)
+
 	}
 }
