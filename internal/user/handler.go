@@ -220,7 +220,18 @@ func (h *Handler) ChangeEmailRequest(c *gin.Context) {
 		return
 	}
 
-	err := h.service.ChangeEmailRequest(c.Request.Context(), &req)
+	userIDRaw, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, ok := userIDRaw.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID in context"})
+		return
+	}
+
+	err := h.service.ChangeEmailRequest(c.Request.Context(), userID, &req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -229,6 +240,8 @@ func (h *Handler) ChangeEmailRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Yêu cầu thay đổi email đã được gửi"})
 }
 
+
+
 func (h *Handler) VerifyEmailRequest(c *gin.Context) {
 	var req request.VerifyEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -236,7 +249,19 @@ func (h *Handler) VerifyEmailRequest(c *gin.Context) {
 		return
 	}
 
-	err := h.service.VerifyEmailRequest(c.Request.Context(), &req)
+	// ✅ Lấy userID từ context do middleware JWT gán
+	userIDRaw, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	userID, ok := userIDRaw.(string)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID in context"})
+		return
+	}
+
+	err := h.service.VerifyEmailRequest(c.Request.Context(), userID, &req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

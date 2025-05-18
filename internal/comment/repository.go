@@ -3,7 +3,7 @@ package comment
 import (
     "context"
     "time"
-
+    "errors"
     "socialnetwork/models"
 
     "go.mongodb.org/mongo-driver/bson"
@@ -14,9 +14,10 @@ import (
 type Repository interface {
     Create(ctx context.Context, c *models.Comment) (*models.Comment, error)
     GetByID(ctx context.Context, id primitive.ObjectID) (*models.Comment, error)
-    Update(ctx context.Context, id primitive.ObjectID, data map[string]interface{}) error
-    Delete(ctx context.Context, id primitive.ObjectID) error
+    Update(ctx context.Context, id, userID primitive.ObjectID, data map[string]interface{}) error
+    Delete(ctx context.Context, id, userID primitive.ObjectID) error
     ListByPost(ctx context.Context, postID primitive.ObjectID) ([]*models.Comment, error)
+    ToggleLike(ctx context.Context, commentID, userID primitive.ObjectID) error
 }
 
 type commentRepo struct {
@@ -44,16 +45,34 @@ func (r *commentRepo) GetByID(ctx context.Context, id primitive.ObjectID) (*mode
     return &comment, err
 }
 
-func (r *commentRepo) Update(ctx context.Context, id primitive.ObjectID, data map[string]interface{}) error {
+func (r *commentRepo) Update(ctx context.Context, id, userID primitive.ObjectID, data map[string]interface{}) error {
     data["updated_at"] = time.Now()
-    _, err := r.collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": data})
-    return err
+    res, err := r.collection.UpdateOne(
+        ctx,
+        bson.M{"_id": id, "user_id": userID}, // Check đúng người
+        bson.M{"$set": data},
+    )
+    if err != nil {
+        return err
+    }
+    if res.MatchedCount == 0 {
+        return errors.New("unauthorized or comment not found")
+    }
+    return nil
 }
 
-func (r *commentRepo) Delete(ctx context.Context, id primitive.ObjectID) error {
-    _, err := r.collection.DeleteOne(ctx, bson.M{"_id": id})
-    return err
+
+func (r *commentRepo) Delete(ctx context.Context, id, userID primitive.ObjectID) error {
+    res, err := r.collection.DeleteOne(ctx, bson.M{"_id": id, "user_id": userID})
+    if err != nil {
+        return err
+    }
+    if res.DeletedCount == 0 {
+        return errors.New("unauthorized or comment not found")
+    }
+    return nil
 }
+
 
 func (r *commentRepo) ListByPost(ctx context.Context, postID primitive.ObjectID) ([]*models.Comment, error) {
     cursor, err := r.collection.Find(ctx, bson.M{"post_id": postID})
@@ -72,3 +91,32 @@ func (r *commentRepo) ListByPost(ctx context.Context, postID primitive.ObjectID)
     }
     return comments, nil
 }
+
+func (r *commentRepo) ToggleLike(ctx context.Context, commentID, userID primitive.ObjectID) error {
+    var comment models.Comment
+    err := r.collection.FindOne(ctx, bson.M{"_id": commentID}).Decode(&comment)
+    if err != nil {
+        return err
+    }
+
+    // Kiểm tra user đã like chưa
+    liked := false
+    for _, uid := range comment.Likes {
+        if uid == userID {
+            liked = true
+            break
+        }
+    }
+
+    var update bson.M
+    if liked {
+        update = bson.M{"$pull": bson.M{"likes": userID}}
+    } else {
+        update = bson.M{"$addToSet": bson.M{"likes": userID}}
+    }
+
+    _, err = r.collection.UpdateOne(ctx, bson.M{"_id": commentID}, update)
+    return err
+}
+
+

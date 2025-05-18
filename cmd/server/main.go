@@ -8,6 +8,7 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
 
+	"socialnetwork/internal/comment"
 	"socialnetwork/internal/otp"
 	"socialnetwork/internal/post"
 	"socialnetwork/internal/user"
@@ -40,7 +41,7 @@ func main() {
 		log.Fatalf("❌ Redis connection failed: %v", err)
 	}
 
-	// Khởi tạo email sender (SMTP hoặc mock)
+	// Email sender
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
 	smtpUser := os.Getenv("SMTP_USERNAME")
@@ -55,27 +56,28 @@ func main() {
 		log.Println("⚠️ SMTP config missing. Using mock email sender")
 	}
 
-	// Khởi tạo SMS sender (mock)
+	// SMS sender
 	smsSender := sms.NewMockSMSSender()
 	log.Println("✅ Using MockSMS sender")
 
-	// --- Khởi tạo services theo đúng thứ tự ---
+	// --- Khởi tạo services ---
 
-	// 1. Repository người dùng
 	userRepo := user.NewRepository(db)
-
-	// 2. Service OTP (phải tạo trước userService vì userService cần dùng)
 	otpService := otp.NewService(redisClient, emailSender, smsSender)
+	userService := user.NewService(userRepo, otpService.(otp.OTPService), emailSender)
 
-	// 3. Service User: truyền otpService vào đúng (thay vì nil)
-	userService := user.NewService(userRepo, otpService, emailSender)
-
-	// 4. Khởi tạo handler
 	userHandler := user.NewHandler(userService)
 	otpHandler := otp.NewOTPHandler(otpService)
-	postRepo := post.NewPostRepository(db, "posts")
-	postService := post.NewPostService(postRepo)
+
+	// Post
+	postRepo := post.NewPostRepository(db)
+	postService := post.NewPostService(&postRepo)
 	postHandler := post.NewPostHandler(postService)
+
+	// ✅ Comment
+	commentRepo := comment.NewCommentRepository(db)
+	commentService := comment.NewCommentService(commentRepo)
+	commentHandler := comment.NewCommentHandler(commentService)
 
 	// --- Thiết lập Gin ---
 	gin.SetMode(gin.ReleaseMode)
@@ -86,14 +88,16 @@ func main() {
 		log.Fatalf("❌ Failed to set trusted proxies: %v", err)
 	}
 
-	// Đăng ký route
+	// Routes
 	r.POST("/register", userHandler.Register)
 	r.POST("/login", userHandler.Login)
+
 	routes.UserRoutes(r, db, userHandler)
 	routes.OTProutes(r, otpHandler)
 	routes.PostRoutes(r, postHandler)
+	routes.CommentRoutes(r, db, commentHandler) // ✅ Thêm dòng này
 
-	// Khởi động server
+	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

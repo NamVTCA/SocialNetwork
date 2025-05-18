@@ -55,6 +55,7 @@ func (h *OTPHandler) VerifyOTP(c *gin.Context) {
 		Identifier: req.Identifier,
 		Purpose:    req.Purpose,
 		OTP:        req.OTP,
+		Channel:    req.Channel,
 	})
 	if err != nil {
 		// fmt.Printf("[DEBUG][VerifyOTP] OTP verification failed: %v\n", err)

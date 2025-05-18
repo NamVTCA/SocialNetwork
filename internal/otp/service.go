@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -19,13 +20,33 @@ type Service interface {
 	VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
 	DeleteOTP(ctx context.Context, key string) error
 	SendOTP(ctx context.Context, req *models.SendOTPRequest) error
+	SendOTPWithCustomKey(ctx context.Context, req *models.SendOTPRequest) error // ← thêm
+	PeekIdentifierByCustomKey(ctx context.Context, key string) (string, error)
 	SendForgotPasswordOTP(ctx context.Context, email string) error
+}
+
+type OTPService interface {
+	SaveOTP(ctx context.Context, key string, code string, duration time.Duration) error
+	VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
+	DeleteOTP(ctx context.Context, key string) error
+	SendOTP(ctx context.Context, req *models.SendOTPRequest) error
+	SendForgotPasswordOTP(ctx context.Context, email string) error
+	SendRawEmail(ctx context.Context, to, subject, body string) error
+	GetRawOTP(ctx context.Context, key string) (string, error)
 }
 
 type service struct {
 	redisClient *redis.Client
 	emailSender email.EmailSender
 	smsSender   sms.SMSSender
+}
+
+func normalizePhone(phone string) string {
+	// Nếu bắt đầu bằng 0 → đổi thành +84
+	if strings.HasPrefix(phone, "0") {
+		return "+84" + phone[1:]
+	}
+	return phone
 }
 
 func NewService(redisClient *redis.Client, emailSender email.EmailSender, smsSender sms.SMSSender) Service {
@@ -94,6 +115,52 @@ func (s *service) SendOTP(ctx context.Context, req *models.SendOTPRequest) error
 	}
 }
 
+func (s *service) SendOTPWithCustomKey(ctx context.Context, req *models.SendOTPRequest) error {
+	normalizedID := req.Identifier
+	if req.Channel == "phone" {
+		normalizedID = utils.FormatPhoneToE164(req.Identifier)
+		if !utils.IsValidPhoneE164(normalizedID) {
+			return errors.New("invalid phone number format")
+		}
+	}
+
+	otp := GenerateOTP(6)
+	key := req.CustomKey
+	if key == "" {
+		// fallback nếu không có custom key
+		key = fmt.Sprintf("otp:%s:%s", normalizedID, req.Purpose)
+	}
+	expire := 5 * time.Minute
+
+	if err := s.redisClient.Set(ctx, key, normalizedID+":"+otp, expire).Err(); err != nil {
+		return err
+	}
+
+	message := fmt.Sprintf("Your OTP code is %s. It is valid for 5 minutes.", otp)
+
+	switch req.Channel {
+	case "email":
+		return s.emailSender.Send(req.Identifier, "OTP Verification", message)
+	case "phone":
+		return s.smsSender.Send(normalizedID, message)
+	default:
+		return errors.New("invalid channel")
+	}
+}
+
+func (s *service) PeekIdentifierByCustomKey(ctx context.Context, key string) (string, error) {
+	val, err := s.redisClient.Get(ctx, key).Result()
+	if err != nil {
+		return "", errors.New("OTP không tồn tại hoặc đã hết hạn")
+	}
+
+	parts := strings.Split(val, ":")
+	if len(parts) != 2 {
+		return "", errors.New("dữ liệu OTP không hợp lệ")
+	}
+
+	return parts[0], nil // Trả về identifier (email/số điện thoại)
+}
 
 func (s *service) SaveOTP(ctx context.Context, key, code string, duration time.Duration) error {
 	return s.redisClient.Set(ctx, key, code, duration).Err()
@@ -131,7 +198,6 @@ func (s *service) VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) e
 	return nil
 }
 
-
 func (s *service) SendForgotPasswordOTP(ctx context.Context, email string) error {
 	req := &models.SendOTPRequest{
 		Identifier: email,
@@ -140,3 +206,12 @@ func (s *service) SendForgotPasswordOTP(ctx context.Context, email string) error
 	}
 	return s.SendOTP(ctx, req)
 }
+
+func (s *service) SendRawEmail(ctx context.Context, to, subject, body string) error {
+	return s.emailSender.Send(to, subject, body)
+}
+
+func (s *service) GetRawOTP(ctx context.Context, key string) (string, error) {
+	return s.redisClient.Get(ctx, key).Result()
+}
+

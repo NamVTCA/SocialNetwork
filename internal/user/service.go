@@ -3,14 +3,16 @@ package user
 import (
 	"context"
 	"errors"
-	"go.mongodb.org/mongo-driver/bson"
-	// "fmt"
+	"fmt"
 	"socialnetwork/dto/request"
+	"socialnetwork/internal/otp"
 	"socialnetwork/models"
 	"socialnetwork/pkg/auth"
 	"socialnetwork/pkg/email"
-
+	"strings"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 type Service interface {
@@ -22,29 +24,25 @@ type Service interface {
 	ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error
 	SendForgotPasswordOTP(ctx context.Context, email string) error
 	ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error
-	ChangeEmailRequest(ctx context.Context, req *request.ChangeEmailRequest) error
-	VerifyEmailRequest(ctx context.Context, req *request.VerifyEmailRequest) error
+	ChangeEmailRequest(ctx context.Context, userID string, req *request.ChangeEmailRequest) error
+	VerifyEmailRequest(ctx context.Context, userID string, req *request.VerifyEmailRequest) error
 }
 
-type OTPService interface {
-	SaveOTP(ctx context.Context, key string, code string, duration time.Duration) error
-	VerifyOTP(ctx context.Context, req *models.VerifyOTPRequest) error
-	DeleteOTP(ctx context.Context, key string) error
-	SendOTP(ctx context.Context, req *models.SendOTPRequest) error
-	SendForgotPasswordOTP(ctx context.Context, email string) error
-}
+
 
 type service struct {
 	repo        Repository
-	otpService  OTPService // interface quản lý OTP
+	otpService  otp.OTPService // interface quản lý OTP
 	emailSender email.EmailSender
+	
 }
 
-func NewService(repo Repository, otpService OTPService, emailSender email.EmailSender) Service {
+func NewService(repo Repository, otpService otp.OTPService, emailSender email.EmailSender) Service {
 	return &service{
 		repo:        repo,
 		otpService:  otpService,
 		emailSender: emailSender,
+		
 	}
 }
 
@@ -195,50 +193,78 @@ func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordR
 	return nil
 }
 
-func (s *service) ChangeEmailRequest(ctx context.Context, req *request.ChangeEmailRequest) error {
-	// Kiểm tra xem email mới đã tồn tại chưa
+func (s *service) ChangeEmailRequest(ctx context.Context, userID string, req *request.ChangeEmailRequest) error {
+	user, err := s.repo.FindByID(ctx, userID)
+	if err != nil {
+		return errors.New("người dùng không tồn tại")
+	}
+
+	if user.Email != req.OldEmail {
+		return errors.New("email hiện tại không đúng")
+	}
+
 	existingUser, err := s.repo.FindByEmail(ctx, req.NewEmail)
 	if err == nil && existingUser != nil {
 		return errors.New("email mới đã tồn tại")
 	}
 
-	// Gửi mã OTP đến email mới
-	err = s.otpService.SendOTP(ctx, &models.SendOTPRequest{
-		Identifier: req.NewEmail,
-		Purpose:    "change_email",
-		Channel:    "email",
-	})
+	// 🔐 Tạo OTP
+	otp := otp.GenerateOTP(6)
+
+	// 🔑 Lưu vào Redis: key = change_email:<userID>, value = <newEmail>:<otp>
+	key := fmt.Sprintf("change_email:%s", user.ID.Hex())
+	value := fmt.Sprintf("%s:%s", req.NewEmail, otp)
+
+	err = s.otpService.SaveOTP(ctx, key, value, 5*time.Minute)
 	if err != nil {
-		return err
+		return errors.New("không thể lưu mã OTP")
+	}
+
+	// ✉️ Gửi OTP qua email mới
+	message := fmt.Sprintf("Mã xác thực thay đổi email của bạn là %s. Có hiệu lực trong 5 phút.", otp)
+	err = s.otpService.SendRawEmail(ctx, req.NewEmail, "Xác thực thay đổi email", message)
+	if err != nil {
+		return errors.New("không thể gửi email xác thực")
 	}
 
 	return nil
 }
 
-func (s *service) VerifyEmailRequest(ctx context.Context, req *request.VerifyEmailRequest) error {
-	// Kiểm tra OTP
-	verifyReq := &models.VerifyOTPRequest{
-		Identifier: req.NewEmail,
-		Purpose:    "change_email",
-		OTP:        req.OTP,
-		Channel:    "email",
-	}
 
-	if err := s.otpService.VerifyOTP(ctx, verifyReq); err != nil {
+func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *request.VerifyEmailRequest) error {
+	key := fmt.Sprintf("change_email:%s", userID)
+
+	val, err := s.otpService.GetRawOTP(ctx, key)
+	if err != nil {
 		return errors.New("mã OTP không hợp lệ hoặc đã hết hạn")
 	}
 
-	user, err := s.repo.FindByID(ctx, req.UserID)
+	parts := strings.Split(val, ":")
+	if len(parts) != 2 {
+		return errors.New("dữ liệu OTP không hợp lệ")
+	}
+
+	newEmail := parts[0]
+	storedOTP := parts[1]
+
+	if req.OTP != storedOTP {
+		return errors.New("mã OTP không chính xác")
+	}
+
+	user, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return errors.New("người dùng không tồn tại")
 	}
 
-	update := bson.M{"email": req.NewEmail}
+	update := bson.M{"email": newEmail}
 	if err := s.repo.UpdateByID(ctx, user.ID.Hex(), update); err != nil {
 		return err
 	}
 
-	s.otpService.DeleteOTP(ctx, "change_email:"+req.NewEmail)
+	// Xóa OTP sau khi dùng
+	s.otpService.DeleteOTP(ctx, key)
 
 	return nil
 }
+
+
