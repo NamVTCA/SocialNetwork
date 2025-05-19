@@ -12,7 +12,7 @@ func CommentRoutes(r *gin.Engine, db *mongo.Database, handler *comment.CommentHa
     commentGroup := r.Group("/comments")
 
 
-    commentGroup.POST("/:postID", handler.CreateComment)
+    commentGroup.POST("/:postID",middleware.JWTAuthMiddleware(), handler.CreateComment)
     commentGroup.GET("/:postID", handler.GetCommentsByPost)
     commentGroup.PUT("/:id", middleware.JWTAuthMiddleware(), handler.UpdateComment)
     commentGroup.DELETE("/:id", middleware.JWTAuthMiddleware(), handler.DeleteComment)

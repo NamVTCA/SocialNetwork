@@ -205,7 +205,7 @@ func (h *Handler) ResetPassword(c *gin.Context) {
 
     err := h.service.ResetPassword(c.Request.Context(), &req)
     if err != nil {
-        fmt.Printf("ResetPassword error: %v\n", err)
+        // fmt.Printf("ResetPassword error: %v\n", err)
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
