@@ -8,6 +8,7 @@ import (
 	"socialnetwork/dto/request"
 	"socialnetwork/dto/response"
 	"socialnetwork/models"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"github.com/gin-gonic/gin"
 )
@@ -268,4 +269,140 @@ func (h *Handler) VerifyEmailRequest(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Thay đổi email thành công"})
+}
+
+// POST /users/:id/friends/request
+func (h *Handler) SendFriendRequest(c *gin.Context) {
+	userIDStr := c.GetString("userID")
+	fromID, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sender ID"})
+		return
+	}
+
+	toIDStr := c.Param("id")
+	toID, err := primitive.ObjectIDFromHex(toIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid receiver ID"})
+		return
+	}
+
+	// 1. Không cho tự gửi kết bạn cho chính mình
+	if fromID == toID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Không thể gửi kết bạn cho chính mình"})
+		return
+	}
+
+	// 2. Kiểm tra nếu đã gửi yêu cầu rồi
+	exists, err := h.service.FriendRequestExists(c.Request.Context(), fromID, toID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Không kiểm tra được trạng thái lời mời"})
+		return
+	}
+
+	if exists {
+		// 3. Nếu đã gửi rồi thì thực hiện hủy lời mời
+		err := h.service.CancelFriendRequest(c.Request.Context(), fromID, toID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Hủy lời mời thất bại"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Đã hủy lời mời kết bạn"})
+		return
+	}
+
+	// Gửi yêu cầu kết bạn mới
+	if err := h.service.SendFriendRequest(c.Request.Context(), fromID, toID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Yêu cầu kết bạn đã được gửi"})
+}
+
+
+
+// POST /users/:id/friends/accept
+func (h *Handler) AcceptFriendRequest(c *gin.Context) {
+    // Người đang đăng nhập (phải là người được gửi lời mời)
+    receiverIDStr := c.GetString("userID")
+    if receiverIDStr == "" {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+        return
+    }
+    receiverID, err := primitive.ObjectIDFromHex(receiverIDStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in token"})
+        return
+    }
+
+    // Người đã gửi lời mời (truyền qua URL)
+    senderIDStr := c.Param("id")
+    senderID, err := primitive.ObjectIDFromHex(senderIDStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in URL"})
+        return
+    }
+
+    // Gọi service xử lý
+    if err := h.service.AcceptFriendRequest(c.Request.Context(), receiverID, senderID); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Đã chấp nhận yêu cầu kết bạn"})
+}
+
+
+// POST /users/:id/block
+func (h *Handler) BlockUser(c *gin.Context) {
+    userIDStr := c.GetString("userID")
+    uid, err := primitive.ObjectIDFromHex(userIDStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        return
+    }
+
+    targetIDStr := c.Param("id")
+    targetID, err := primitive.ObjectIDFromHex(targetIDStr)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target ID"})
+        return
+    }
+
+    if err := h.service.BlockUser(c.Request.Context(), uid, targetID); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Đã chặn người dùng"})
+}
+
+
+// PUT /users/me/hide-profile
+func (h *Handler) ToggleHideProfile(c *gin.Context) {
+    userID := c.GetString("userID")
+    uid, err := primitive.ObjectIDFromHex(userID)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        return
+    }
+    var body struct {
+        Hide bool `json:"hide"`
+    }
+    if err := c.ShouldBindJSON(&body); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    if err := h.service.ToggleHideProfile(c.Request.Context(), uid, body.Hide); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    status := "hiện"
+    if body.Hide {
+        status = "ẩn"
+    }
+    c.JSON(http.StatusOK, gin.H{
+        "message": fmt.Sprintf("Đã cập nhật chế độ %s trang cá nhân (hide=true: ẩn, hide=false: hiện)", status),
+    })
 }

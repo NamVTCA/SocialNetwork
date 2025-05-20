@@ -11,6 +11,7 @@ import (
 	"socialnetwork/pkg/email"
 	"strings"
 	"time"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -26,6 +27,13 @@ type Service interface {
 	ResetPassword(ctx context.Context, req *request.ResetPasswordRequest) error
 	ChangeEmailRequest(ctx context.Context, userID string, req *request.ChangeEmailRequest) error
 	VerifyEmailRequest(ctx context.Context, userID string, req *request.VerifyEmailRequest) error
+	SendFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error
+	AcceptFriendRequest(ctx context.Context, userID, requesterID primitive.ObjectID) error
+	BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error
+	ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error
+	CancelFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error
+	FriendRequestExists(ctx context.Context, fromID, toID primitive.ObjectID) (bool, error)
+
 }
 
 
@@ -267,4 +275,69 @@ func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *re
 	return nil
 }
 
+func (s *service) SendFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error {
+    if fromID == toID {
+        return errors.New("không thể gửi yêu cầu cho chính mình")
+    }
+    return s.repo.SendFriendRequest(ctx, fromID, toID)
+}
 
+func (s *service) AcceptFriendRequest(ctx context.Context, receiverID, senderID primitive.ObjectID) error {
+	// 1. Lấy thông tin người nhận (receiver)
+	receiver, err := s.repo.FindByID(ctx, receiverID.Hex())
+	if err != nil {
+		return fmt.Errorf("Không tìm thấy người nhận lời mời")
+	}
+
+	// 2. Kiểm tra xem sender có nằm trong friendRequests của receiver không
+	found := false
+	for _, id := range receiver.FriendRequests {
+		if id == senderID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("Không có lời mời kết bạn từ người này")
+	}
+
+	// 3. Cập nhật cả 2 user: thêm vào friends, xóa khỏi friendRequests
+	// Sử dụng repository để cập nhật
+	updateReceiver := bson.M{
+		"$pull":     bson.M{"friendRequests": senderID},
+		"$addToSet": bson.M{"friends": senderID},
+	}
+	if err := s.repo.UpdateByID(ctx, receiverID.Hex(), updateReceiver); err != nil {
+		return fmt.Errorf("Lỗi khi cập nhật người nhận")
+	}
+
+	updateSender := bson.M{
+		"$addToSet": bson.M{"friends": receiverID},
+	}
+	if err := s.repo.UpdateByID(ctx, senderID.Hex(), updateSender); err != nil {
+		return fmt.Errorf("Lỗi khi cập nhật người gửi")
+	}
+
+	return nil
+}
+
+
+
+func (s *service) BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error {
+    if userID == targetID {
+        return errors.New("không thể chặn chính mình")
+    }
+    return s.repo.BlockUser(ctx, userID, targetID)
+}
+
+func (s *service) ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error {
+    return s.repo.ToggleHideProfile(ctx, userID, hide)
+}
+
+func (s *service) CancelFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error {
+	return s.repo.CancelFriendRequest(ctx, fromID, toID)
+}
+
+func (s *service) FriendRequestExists(ctx context.Context, fromID, toID primitive.ObjectID) (bool, error) {
+	return s.repo.FriendRequestExists(ctx, fromID, toID)
+}

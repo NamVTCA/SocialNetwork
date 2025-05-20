@@ -18,5 +18,9 @@ func UserRoutes(r *gin.Engine, db *mongo.Database, handler *user.Handler) {
 		userRoutes.POST("/reset-password", handler.ResetPassword)
 		userRoutes.POST("/change-email", middleware.JWTAuthMiddleware(), handler.ChangeEmailRequest)
 		userRoutes.POST("/verify-email", middleware.JWTAuthMiddleware(), handler.VerifyEmailRequest)
+		userRoutes.POST("/:id/friends/request", middleware.JWTAuthMiddleware(), handler.SendFriendRequest)
+		userRoutes.POST("/:id/friends/accept", middleware.JWTAuthMiddleware(),handler.AcceptFriendRequest)
+		userRoutes.POST("/:id/block", middleware.JWTAuthMiddleware(), handler.BlockUser)
+		userRoutes.PUT("/me/hide-profile", middleware.JWTAuthMiddleware(), handler.ToggleHideProfile)
 	}
 }

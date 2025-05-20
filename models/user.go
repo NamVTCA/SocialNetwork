@@ -40,6 +40,14 @@ type User struct {
 	FollowerCount  int `bson:"followerCount" json:"followerCount"`
 	FollowingCount int `bson:"followingCount" json:"followingCount"`
 
+	// **Bạn bè & chặn**
+    FriendRequests []primitive.ObjectID `bson:"friendRequests,omitempty" json:"friendRequests,omitempty"` // đang chờ xác nhận
+    Friends        []primitive.ObjectID `bson:"friends,omitempty" json:"friends,omitempty"`           // đã xác nhận
+    BlockedUsers   []primitive.ObjectID `bson:"blockedUsers,omitempty" json:"blockedUsers,omitempty"` // đã chặn
+
+    // Ẩn/hiện trang cá nhân
+    HideProfile    bool                 `bson:"hideProfile" json:"hideProfile"`
+
 	// Bảo mật & quyền hạn
 	Roles      []string   `bson:"roles,omitempty" json:"roles,omitempty"` // vd: ["user","admin"]
 	IsVerified bool       `bson:"isVerified" json:"isVerified"`
