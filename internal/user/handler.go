@@ -387,6 +387,7 @@ func (h *Handler) ToggleHideProfile(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
         return
     }
+
     var body struct {
         Hide bool `json:"hide"`
     }
@@ -394,15 +395,19 @@ func (h *Handler) ToggleHideProfile(c *gin.Context) {
         c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
         return
     }
+
     if err := h.service.ToggleHideProfile(c.Request.Context(), uid, body.Hide); err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
         return
     }
+
     status := "hiện"
     if body.Hide {
         status = "ẩn"
     }
+
     c.JSON(http.StatusOK, gin.H{
-        "message": fmt.Sprintf("Đã cập nhật chế độ %s trang cá nhân (hide=true: ẩn, hide=false: hiện)", status),
+        "message": fmt.Sprintf("Đã cập nhật chế độ trang cá nhân thành: %s", status),
+        "hide":    body.Hide, // thêm trạng thái trả về nếu cần
     })
 }

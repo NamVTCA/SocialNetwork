@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"socialnetwork/dto/request"
 	"socialnetwork/internal/otp"
 	"socialnetwork/models"
@@ -11,7 +12,6 @@ import (
 	"socialnetwork/pkg/email"
 	"strings"
 	"time"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
@@ -33,16 +33,12 @@ type Service interface {
 	ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error
 	CancelFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error
 	FriendRequestExists(ctx context.Context, fromID, toID primitive.ObjectID) (bool, error)
-
 }
-
-
 
 type service struct {
 	repo        Repository
 	otpService  otp.OTPService // interface quản lý OTP
 	emailSender email.EmailSender
-	
 }
 
 func NewService(repo Repository, otpService otp.OTPService, emailSender email.EmailSender) Service {
@@ -50,7 +46,6 @@ func NewService(repo Repository, otpService otp.OTPService, emailSender email.Em
 		repo:        repo,
 		otpService:  otpService,
 		emailSender: emailSender,
-		
 	}
 }
 
@@ -130,7 +125,7 @@ func (s *service) UpdateProfile(ctx context.Context, id string, req *request.Upd
 		return nil // không có gì để cập nhật
 	}
 
-	return s.repo.UpdateByID(ctx, id, update)
+	return s.repo.UpdateByID(ctx, id, bson.M{"$set": update})
 }
 
 func (s *service) ChangePassword(ctx context.Context, userID string, req *request.ChangePasswordRequest) error {
@@ -149,7 +144,9 @@ func (s *service) ChangePassword(ctx context.Context, userID string, req *reques
 	}
 
 	update := bson.M{
-		"password": hashedPassword,
+		"$set": bson.M{
+			"password": hashedPassword,
+		},
 	}
 
 	return s.repo.UpdateByID(ctx, userID, update)
@@ -190,7 +187,12 @@ func (s *service) ResetPassword(ctx context.Context, req *request.ResetPasswordR
 		return err
 	}
 
-	update := bson.M{"password": hashedPassword}
+	update := bson.M{
+		"$set": bson.M{
+			"password": hashedPassword,
+		},
+	}
+
 	if err := s.repo.UpdateByID(ctx, user.ID.Hex(), update); err != nil {
 		return err
 	}
@@ -238,7 +240,6 @@ func (s *service) ChangeEmailRequest(ctx context.Context, userID string, req *re
 	return nil
 }
 
-
 func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *request.VerifyEmailRequest) error {
 	key := fmt.Sprintf("change_email:%s", userID)
 
@@ -264,7 +265,12 @@ func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *re
 		return errors.New("người dùng không tồn tại")
 	}
 
-	update := bson.M{"email": newEmail}
+	update := bson.M{
+		"$set": bson.M{
+			"email": newEmail,
+		},
+	}
+
 	if err := s.repo.UpdateByID(ctx, user.ID.Hex(), update); err != nil {
 		return err
 	}
@@ -276,10 +282,10 @@ func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *re
 }
 
 func (s *service) SendFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error {
-    if fromID == toID {
-        return errors.New("không thể gửi yêu cầu cho chính mình")
-    }
-    return s.repo.SendFriendRequest(ctx, fromID, toID)
+	if fromID == toID {
+		return errors.New("không thể gửi yêu cầu cho chính mình")
+	}
+	return s.repo.SendFriendRequest(ctx, fromID, toID)
 }
 
 func (s *service) AcceptFriendRequest(ctx context.Context, receiverID, senderID primitive.ObjectID) error {
@@ -321,17 +327,15 @@ func (s *service) AcceptFriendRequest(ctx context.Context, receiverID, senderID 
 	return nil
 }
 
-
-
 func (s *service) BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error {
-    if userID == targetID {
-        return errors.New("không thể chặn chính mình")
-    }
-    return s.repo.BlockUser(ctx, userID, targetID)
+	if userID == targetID {
+		return errors.New("không thể chặn chính mình")
+	}
+	return s.repo.BlockUser(ctx, userID, targetID)
 }
 
 func (s *service) ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error {
-    return s.repo.ToggleHideProfile(ctx, userID, hide)
+	return s.repo.ToggleHideProfile(ctx, userID, hide)
 }
 
 func (s *service) CancelFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error {

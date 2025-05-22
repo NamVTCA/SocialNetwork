@@ -1,61 +1,87 @@
 package follow
 
-
 import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	
 )
 
-// FollowHandler provides follow endpoints.
 type FollowHandler struct {
-	service FollowService
+	followService FollowService
 }
 
-func NewFollowHandler(s FollowService) *FollowHandler {
-	return &FollowHandler{service: s}
+func NewFollowHandler(followService FollowService) *FollowHandler {
+	return &FollowHandler{followService: followService}
 }
 
-func (h *FollowHandler) Follow(c *gin.Context) {
-	uid := c.GetString("userID")
-	follower, _ := primitive.ObjectIDFromHex(uid)
-	var body struct { Following string `json:"following" binding:"required"` }
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func (h *FollowHandler) FollowUser(c *gin.Context) {
+	followerID := c.MustGet("userID").(primitive.ObjectID) // giả sử userID được lấy từ middleware auth
+
+	followingIDHex := c.Param("id")
+	followingID, err := primitive.ObjectIDFromHex(followingIDHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
-	followee, _ := primitive.ObjectIDFromHex(body.Following)
-	if err := h.service.Follow(c.Request.Context(), follower, followee); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+	err = h.followService.FollowUser(c.Request.Context(), followerID, followingID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "followed"})
 }
 
-func (h *FollowHandler) Unfollow(c *gin.Context) {
-	uid := c.GetString("userID")
-	follower, _ := primitive.ObjectIDFromHex(uid)
-	followeeID := c.Param("id")
-	followee, _ := primitive.ObjectIDFromHex(followeeID)
-	if err := h.service.Unfollow(c.Request.Context(), follower, followee); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+func (h *FollowHandler) UnfollowUser(c *gin.Context) {
+	followerID := c.MustGet("userID").(primitive.ObjectID)
+
+	followingIDHex := c.Param("id")
+	followingID, err := primitive.ObjectIDFromHex(followingIDHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
+
+	err = h.followService.UnfollowUser(c.Request.Context(), followerID, followingID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "unfollowed"})
 }
 
+// ListFollowers handles GET /:id/followers requests
 func (h *FollowHandler) ListFollowers(c *gin.Context) {
-	userID := c.Param("id")
-	uid, _ := primitive.ObjectIDFromHex(userID)
-	list, _ := h.service.GetFollowers(c.Request.Context(), uid)
-	c.JSON(http.StatusOK, list)
+	idHex := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	followers, err := h.followService.GetFollowers(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, followers)
 }
 
+
+// ListFollowing handles GET /:id/following requests
 func (h *FollowHandler) ListFollowing(c *gin.Context) {
-	userID := c.Param("id")
-	uid, _ := primitive.ObjectIDFromHex(userID)
-	list, _ := h.service.GetFollowing(c.Request.Context(), uid)
-	c.JSON(http.StatusOK, list)
+	idHex := c.Param("id")
+	id, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	followings, err := h.followService.GetFollowing(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, followings)
 }

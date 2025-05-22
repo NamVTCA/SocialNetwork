@@ -2,12 +2,12 @@ package user
 
 import (
 	"context"
-	"time"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"socialnetwork/models"
+	"time"
 )
 
 type Repository interface {
@@ -18,13 +18,17 @@ type Repository interface {
 	FindAll(ctx context.Context) ([]*models.User, error)
 	UpdateByID(ctx context.Context, id string, update bson.M) error
 	SendFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error
-    AcceptFriendRequest(ctx context.Context, userID, requesterID primitive.ObjectID) error
-    BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error
-    ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error
+	AcceptFriendRequest(ctx context.Context, userID, requesterID primitive.ObjectID) error
+	BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error
+	ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error
 	FriendRequestExists(ctx context.Context, fromID, toID primitive.ObjectID) (bool, error)
 	CancelFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error
+	GetByID(ctx context.Context, id primitive.ObjectID) (*models.User, error)
+	IncrementFollowerCount(ctx context.Context, userID primitive.ObjectID) error
+	DecrementFollowerCount(ctx context.Context, userID primitive.ObjectID) error
+	IncrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error
+	DecrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error
 }
-
 
 func (r *repository) FindByID(ctx context.Context, id string) (*models.User, error) {
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -47,6 +51,7 @@ type repository struct {
 
 func NewRepository(db *mongo.Database) Repository {
 	return &repository{
+
 		collection: db.Collection("users"),
 		db:         db,
 	}
@@ -120,15 +125,13 @@ func (r *repository) UpdateByID(ctx context.Context, id string, update bson.M) e
 	return nil
 }
 
-
-
 func (r *repository) SendFriendRequest(ctx context.Context, fromID, toID primitive.ObjectID) error {
-    // addToSet trên User[toID].FriendRequests
-    _, err := r.collection.UpdateOne(ctx,
-        bson.M{"_id": toID},
-        bson.M{"$addToSet": bson.M{"friendRequests": fromID}},
-    )
-    return err
+	// addToSet trên User[toID].FriendRequests
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": toID},
+		bson.M{"$addToSet": bson.M{"friendRequests": fromID}},
+	)
+	return err
 }
 
 func (r *repository) AcceptFriendRequest(ctx context.Context, userID, requesterID primitive.ObjectID) error {
@@ -159,22 +162,21 @@ func (r *repository) AcceptFriendRequest(ctx context.Context, userID, requesterI
 	return err
 }
 
-
 func (r *repository) BlockUser(ctx context.Context, userID, targetID primitive.ObjectID) error {
-    // addToSet vào blockedUsers
-    _, err := r.collection.UpdateOne(ctx,
-        bson.M{"_id": userID},
-        bson.M{"$addToSet": bson.M{"blockedUsers": targetID}},
-    )
-    return err
+	// addToSet vào blockedUsers
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$addToSet": bson.M{"blockedUsers": targetID}},
+	)
+	return err
 }
 
 func (r *repository) ToggleHideProfile(ctx context.Context, userID primitive.ObjectID, hide bool) error {
-    _, err := r.collection.UpdateOne(ctx,
-        bson.M{"_id": userID},
-        bson.M{"$set": bson.M{"hideProfile": hide}},
-    )
-    return err
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$set": bson.M{"hideProfile": hide}},
+	)
+	return err
 }
 
 func (r *repository) FriendRequestExists(ctx context.Context, fromID, toID primitive.ObjectID) (bool, error) {
@@ -192,4 +194,41 @@ func (r *repository) CancelFriendRequest(ctx context.Context, fromID, toID primi
 		"to":   toID,
 	})
 	return err
+}
+
+func (r *repository) IncrementFollowerCount(ctx context.Context, userID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$inc": bson.M{"followerCount": 1}},
+	)
+	return err
+}
+func (r *repository) DecrementFollowerCount(ctx context.Context, userID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$inc": bson.M{"followerCount": -1}},
+	)
+	return err
+}
+func (r *repository) IncrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$inc": bson.M{"followingCount": 1}},
+	)
+	return err
+}
+func (r *repository) DecrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error {
+	_, err := r.collection.UpdateOne(ctx,
+		bson.M{"_id": userID},
+		bson.M{"$inc": bson.M{"followingCount": -1}},
+	)
+	return err
+}
+func (r *repository) GetByID(ctx context.Context, id primitive.ObjectID) (*models.User, error) {
+	var user models.User
+	err := r.collection.FindOne(ctx, bson.M{"_id": id}).Decode(&user)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }

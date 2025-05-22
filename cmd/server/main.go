@@ -9,9 +9,13 @@ import (
 	"github.com/joho/godotenv"
 
 	"socialnetwork/internal/comment"
+	"socialnetwork/internal/follow"
+	"socialnetwork/internal/notification"
 	"socialnetwork/internal/otp"
 	"socialnetwork/internal/post"
+	"socialnetwork/internal/short"
 	"socialnetwork/internal/user"
+	"socialnetwork/internal/video"
 	"socialnetwork/pkg/config"
 	"socialnetwork/pkg/email"
 	"socialnetwork/pkg/sms"
@@ -78,6 +82,23 @@ func main() {
 	commentRepo := comment.NewCommentRepository(db)
 	commentService := comment.NewCommentService(commentRepo)
 	commentHandler := comment.NewCommentHandler(commentService)
+	//Notification
+	notifRepo := notification.NewNotificationRepository(db)
+	notifService := notification.NewNotificationService(notifRepo)
+	notifHandler := notification.NewNotificationHandler(notifService)
+	//Follow
+	followRepo := follow.NewFollowRepository(db)
+	followService := follow.NewFollowService(followRepo, userRepo, notifRepo)
+	followHandler := follow.NewFollowHandler(followService)
+
+	//video
+	videoRepo := video.NewVideoRepository(db)
+	videoService := video.NewVideoService(videoRepo, followRepo, notifRepo)
+	// videoHandler := video.NewVideoHandler(videoService)
+	//short
+	shortRepo := short.NewShortRepository(db)
+	shortService := short.NewShortService(shortRepo, followRepo, notifRepo)
+	// shortHandler := short.NewShortHandler(shortService)
 
 	// --- Thiết lập Gin ---
 	gin.SetMode(gin.ReleaseMode)
@@ -97,6 +118,10 @@ func main() {
 	routes.PostRoutes(r, postHandler)
 	routes.CommentRoutes(r, db, commentHandler) // ✅ Thêm dòng này
 
+	api := r.Group("/api")
+	routes.FollowRoutes(api, db, followHandler)
+	routes.Video_ShortRoutes(r, videoService, shortService)
+	routes.NotificationRoutes(api, notifHandler)
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
