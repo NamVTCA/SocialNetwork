@@ -16,6 +16,8 @@ type FollowService interface {
 	UnfollowUser(ctx context.Context, followerID, followingID primitive.ObjectID) error
 	GetFollowers(ctx context.Context, userID primitive.ObjectID) ([]primitive.ObjectID, error)
 	GetFollowing(ctx context.Context, userID primitive.ObjectID) ([]primitive.ObjectID, error)
+	GetFollowerCount(ctx context.Context, userID primitive.ObjectID) (int, error)
+	GetFollowingCount(ctx context.Context, userID primitive.ObjectID) (int, error)
 }
 
 type followService struct {
@@ -104,4 +106,13 @@ func (s *followService) GetFollowing(ctx context.Context, userID primitive.Objec
 		followingIDs[i] = follow.Following
 	}
 	return followingIDs, nil
+}
+
+
+func (s *followService) GetFollowerCount(ctx context.Context, userID primitive.ObjectID) (int, error) {
+	return s.followRepo.CountFollowers(ctx, userID)
+}
+
+func (s *followService) GetFollowingCount(ctx context.Context, userID primitive.ObjectID) (int, error) {
+	return s.followRepo.CountFollowing(ctx, userID)
 }

@@ -11,7 +11,7 @@ func Video_ShortRoutes(r *gin.Engine, videoService video.VideoService, shortServ
 	videoHandler := video.NewVideoHandler(videoService)
 	shortHandler := short.NewShortHandler(shortService)
 
-	authRoutes := r.Group("/api", middleware.JWTAuthMiddleware())
+	authRoutes := r.Group("/video_short", middleware.JWTAuthMiddleware())
 	{
 		// Video routes
 		authRoutes.POST("/videos", videoHandler.CreateVideo)
@@ -21,6 +21,7 @@ func Video_ShortRoutes(r *gin.Engine, videoService video.VideoService, shortServ
 
 		// Short routes
 		authRoutes.POST("/shorts", shortHandler.CreateShort)
+		authRoutes.GET("/shorts/public/:ownerID", shortHandler.GetPublicShortsByOwner)
 		authRoutes.GET("/shorts/:id", shortHandler.GetShortByID)
 		authRoutes.GET("/shorts", shortHandler.GetShortsByOwner)
 		authRoutes.DELETE("/shorts/:id", shortHandler.DeleteShort)

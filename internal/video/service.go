@@ -16,6 +16,7 @@ type VideoService interface {
 	GetVideosByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Video, error)
 	IncrementView(ctx context.Context, id primitive.ObjectID) error
 	DeleteVideo(ctx context.Context, id, ownerID primitive.ObjectID) error
+	GetPublicVideosByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Video, error)
 }
 
 type videoService struct {
@@ -71,4 +72,9 @@ func (s *videoService) IncrementView(ctx context.Context, id primitive.ObjectID)
 
 func (s *videoService) DeleteVideo(ctx context.Context, id, ownerID primitive.ObjectID) error {
 	return s.videoRepo.Delete(ctx, id, ownerID)
+}
+
+func (s *videoService) GetPublicVideosByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Video, error) {
+    // Gọi repo để lấy video chỉ với visibility = "public"
+    return s.videoRepo.FindByOwnerAndVisibility(ctx, ownerID, "public")
 }

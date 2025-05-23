@@ -192,3 +192,20 @@ func (h *PostHandler) ListPosts(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, posts)
 }
+
+func (h *PostHandler) GetPublicPostsByOwner(c *gin.Context) {
+	ownerIDStr := c.Param("ownerID")
+	ownerID, err := primitive.ObjectIDFromHex(ownerIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ownerID"})
+		return
+	}
+
+	posts, err := h.postService.GetPublicPostsByOwner(c.Request.Context(), ownerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get public posts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, posts)
+}

@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"socialnetwork/internal/follow"
 	"socialnetwork/internal/notification"
 	"socialnetwork/models"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type ShortService interface {
@@ -16,6 +16,7 @@ type ShortService interface {
 	GetShortsByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Short, error)
 	IncrementView(ctx context.Context, id primitive.ObjectID) error
 	DeleteShort(ctx context.Context, id, ownerID primitive.ObjectID) error
+	GetPublicShortsByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Short, error)
 }
 
 type shortService struct {
@@ -70,4 +71,8 @@ func (s *shortService) IncrementView(ctx context.Context, id primitive.ObjectID)
 
 func (s *shortService) DeleteShort(ctx context.Context, id, ownerID primitive.ObjectID) error {
 	return s.repo.Delete(ctx, id, ownerID)
+}
+
+func (s *shortService) GetPublicShortsByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Short, error) {
+    return s.repo.FindByOwnerAndVisibility(ctx, ownerID, "public")
 }

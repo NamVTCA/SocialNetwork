@@ -16,6 +16,7 @@ type ShortRepository interface {
 	GetByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Short, error)
 	IncrementViews(ctx context.Context, id primitive.ObjectID) error
 	Delete(ctx context.Context, id, ownerID primitive.ObjectID) error
+	FindByOwnerAndVisibility(ctx context.Context, ownerID primitive.ObjectID, visibility string) ([]models.Short, error)
 }
 
 type shortRepository struct {
@@ -58,4 +59,20 @@ func (r *shortRepository) IncrementViews(ctx context.Context, id primitive.Objec
 func (r *shortRepository) Delete(ctx context.Context, id, ownerID primitive.ObjectID) error {
 	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": id, "ownerId": ownerID})
 	return err
+}
+
+func (r *shortRepository) FindByOwnerAndVisibility(ctx context.Context, ownerID primitive.ObjectID, visibility string) ([]models.Short, error) {
+    filter := bson.M{
+        "owner_id":   ownerID,
+        "visibility": visibility,
+    }
+    cursor, err := r.collection.Find(ctx, filter)
+    if err != nil {
+        return nil, err
+    }
+    var shorts []models.Short
+    if err = cursor.All(ctx, &shorts); err != nil {
+        return nil, err
+    }
+    return shorts, nil
 }

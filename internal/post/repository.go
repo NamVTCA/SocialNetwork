@@ -92,3 +92,19 @@ func (r *PostRepository) List(ctx context.Context, page, limit int64) ([]models.
     }
     return posts, nil
 }
+
+func (r *PostRepository) FindByOwnerAndVisibility(ctx context.Context, ownerID primitive.ObjectID, visibility string) ([]models.Post, error) {
+    filter := bson.M{
+        "user_id":    ownerID,
+        "visibility": visibility,
+    }
+    cursor, err := r.collection.Find(ctx, filter)
+    if err != nil {
+        return nil, err
+    }
+    var posts []models.Post
+    if err = cursor.All(ctx, &posts); err != nil {
+        return nil, err
+    }
+    return posts, nil
+}

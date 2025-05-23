@@ -2,12 +2,12 @@ package follow
 
 import (
 	"context"
-	"time"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"time"
 
-	"socialnetwork/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"socialnetwork/models"
 )
 
 type FollowRepository interface {
@@ -16,6 +16,8 @@ type FollowRepository interface {
 	IsFollowing(ctx context.Context, followerID, followingID primitive.ObjectID) (bool, error)
 	GetFollowers(ctx context.Context, userID primitive.ObjectID) ([]models.Follow, error)
 	GetFollowing(ctx context.Context, userID primitive.ObjectID) ([]models.Follow, error)
+	CountFollowers(ctx context.Context, userID primitive.ObjectID) (int, error)
+	CountFollowing(ctx context.Context, userID primitive.ObjectID) (int, error)
 }
 
 type followRepository struct {
@@ -76,4 +78,15 @@ func (r *followRepository) GetFollowing(ctx context.Context, userID primitive.Ob
 		return nil, err
 	}
 	return follows, nil
+}
+
+
+func (r *followRepository) CountFollowers(ctx context.Context, userID primitive.ObjectID) (int, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{"following": userID})
+	return int(count), err
+}
+
+func (r *followRepository) CountFollowing(ctx context.Context, userID primitive.ObjectID) (int, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{"follower": userID})
+	return int(count), err
 }

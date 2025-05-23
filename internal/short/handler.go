@@ -74,3 +74,20 @@ func (h *ShortHandler) DeleteShort(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "short deleted"})
 }
+
+func (h *ShortHandler) GetPublicShortsByOwner(c *gin.Context) {
+	ownerIDStr := c.Param("ownerID")
+	ownerID, err := primitive.ObjectIDFromHex(ownerIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid ownerID"})
+		return
+	}
+
+	shorts, err := h.service.GetPublicShortsByOwner(c.Request.Context(), ownerID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get public shorts"})
+		return
+	}
+
+	c.JSON(http.StatusOK, shorts)
+}

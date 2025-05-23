@@ -16,6 +16,7 @@ type PostService interface {
     UpdatePost(ctx context.Context, id primitive.ObjectID, updateData bson.M) error
     DeletePost(ctx context.Context, id primitive.ObjectID) error
     ListPosts(ctx context.Context, page, limit int64) ([]models.Post, error)
+    GetPublicPostsByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Post, error)
 }
 
 type postService struct {
@@ -45,4 +46,7 @@ func (s *postService) DeletePost(ctx context.Context, id primitive.ObjectID) err
 
 func (s *postService) ListPosts(ctx context.Context, page, limit int64) ([]models.Post, error) {
     return s.repo.List(ctx, page, limit)
+}
+func (s *postService) GetPublicPostsByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Post, error) {
+    return s.repo.FindByOwnerAndVisibility(ctx, ownerID, "public")
 }

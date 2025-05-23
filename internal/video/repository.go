@@ -16,6 +16,7 @@ type VideoRepository interface {
 	GetByOwner(ctx context.Context, ownerID primitive.ObjectID) ([]models.Video, error)
 	IncrementViews(ctx context.Context, id primitive.ObjectID) error
 	Delete(ctx context.Context, id primitive.ObjectID, ownerID primitive.ObjectID) error
+	FindByOwnerAndVisibility(ctx context.Context, ownerID primitive.ObjectID, visibility string) ([]models.Video, error)
 }
 
 type videoRepository struct {
@@ -59,4 +60,20 @@ func (r *videoRepository) IncrementViews(ctx context.Context, id primitive.Objec
 func (r *videoRepository) Delete(ctx context.Context, id, ownerID primitive.ObjectID) error {
 	_, err := r.collection.DeleteOne(ctx, bson.M{"_id": id, "ownerId": ownerID})
 	return err
+}
+
+func (r *videoRepository) FindByOwnerAndVisibility(ctx context.Context, ownerID primitive.ObjectID, visibility string) ([]models.Video, error) {
+    filter := bson.M{
+        "owner_id":  ownerID,
+        "visibility": visibility,
+    }
+    cursor, err := r.collection.Find(ctx, filter)
+    if err != nil {
+        return nil, err
+    }
+    var videos []models.Video
+    if err = cursor.All(ctx, &videos); err != nil {
+        return nil, err
+    }
+    return videos, nil
 }

@@ -14,6 +14,8 @@ type Video struct {
 	Thumbnail   string             `bson:"thumbnail,omitempty" json:"thumbnail,omitempty"`
 	Duration    int                `bson:"duration,omitempty" json:"duration,omitempty"` // giây
 	Likes       int                `bson:"likes" json:"likes"`
+	Visibility string `bson:"visibility" json:"visibility"` // "public", "private", "friends"...
+	Dislikes    int                `bson:"dislikes" json:"dislikes"`
 	Views       int                `bson:"views" json:"views"`
 	CreatedAt   time.Time          `bson:"createdAt" json:"createdAt"`
 	UpdatedAt   time.Time          `bson:"updatedAt" json:"updatedAt"`

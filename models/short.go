@@ -12,6 +12,8 @@ type Short struct {
 	URL       string             `bson:"url" json:"url"`
 	Duration  int                `bson:"duration" json:"duration"` // thường < 60s
 	Likes     int                `bson:"likes" json:"likes"`
+	Dislikes  int                `bson:"dislikes" json:"dislikes"`
+	Visibility string               `bson:"visibility" json:"visibility"`
 	Views     int                `bson:"views" json:"views"`
 	CreatedAt time.Time          `bson:"createdAt" json:"createdAt"`
 }
