@@ -18,7 +18,8 @@ import (
 
 type Service interface {
 	Register(ctx context.Context, user *models.User) error
-	Login(ctx context.Context, email, password string) (string, error)
+	LoginEmail(ctx context.Context, email, password string) (string, error)
+	LoginPhone(ctx context.Context, phone, password string) (string, error)
 	GetByID(ctx context.Context, id string) (*models.User, error)
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
 	UpdateProfile(ctx context.Context, id string, req *request.UpdateProfileRequest) error
@@ -37,11 +38,11 @@ type Service interface {
 
 type service struct {
 	repo        Repository
-	otpService  otp.OTPService // interface quản lý OTP
+	otpService  otp.Service // interface quản lý OTP
 	emailSender email.EmailSender
 }
 
-func NewService(repo Repository, otpService otp.OTPService, emailSender email.EmailSender) Service {
+func NewService(repo Repository, otpService otp.Service, emailSender email.EmailSender) Service {
 	return &service{
 		repo:        repo,
 		otpService:  otpService,
@@ -59,8 +60,9 @@ func (s *service) Register(ctx context.Context, user *models.User) error {
 	return s.repo.Create(ctx, user)
 }
 
-func (s *service) Login(ctx context.Context, email, password string) (string, error) {
+func (s *service) LoginEmail(ctx context.Context, email, password string) (string, error) {
 	user, err := s.repo.FindByEmail(ctx, email)
+
 	if err != nil {
 		return "", errors.New("tài khoản không tồn tại")
 	}
@@ -69,6 +71,27 @@ func (s *service) Login(ctx context.Context, email, password string) (string, er
 	// fmt.Println("Mật khẩu người dùng nhập:", password)
 	// fmt.Println("Hash lưu trong DB:", user.Password)
 	// fmt.Println("Check result:", auth.CheckPasswordHash(password, user.Password))
+
+	if !auth.CheckPasswordHash(password, user.Password) {
+		return "", errors.New("mật khẩu không đúng")
+	}
+
+	token, err := auth.GenerateJWT(user.ID.Hex())
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+func (s *service) LoginPhone(ctx context.Context, phone, password string) (string, error) {
+	user, err := s.repo.FindByPhone(ctx, phone)
+	if err != nil {
+		return "", errors.New("tài khoản không tồn tại")
+	}
+	if user == nil {
+		return "", errors.New("tài khoản không tồn tại")
+	}
 
 	if !auth.CheckPasswordHash(password, user.Password) {
 		return "", errors.New("mật khẩu không đúng")
@@ -267,7 +290,9 @@ func (s *service) VerifyEmailRequest(ctx context.Context, userID string, req *re
 
 	update := bson.M{
 		"$set": bson.M{
-			"email": newEmail,
+			"email":      newEmail,
+			"isVerified": true,
+			"updatedAt":  time.Now(),
 		},
 	}
 

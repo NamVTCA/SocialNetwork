@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"fmt"
+	"strings"
 	"socialnetwork/dto/request"
 	"socialnetwork/dto/response"
 	"socialnetwork/models"
@@ -21,9 +22,16 @@ func NewHandler(service Service) *Handler {
 	return &Handler{service: service}
 }
 
+func normalizePhone(phone string) string {
+	if strings.HasPrefix(phone, "0") {
+		return "+84" + phone[1:]
+	}
+	return phone
+}
+
 // Register - Đăng ký tài khoản
-func (h *Handler) Register(c *gin.Context) {
-	var req request.RegisterRequest
+func (h *Handler) RegisterEmail(c *gin.Context) {
+	var req request.RegisterEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}) // 👈 log chi tiết lỗi
 		return
@@ -42,16 +50,36 @@ func (h *Handler) Register(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{"message": "Đăng ký thành công"})
 }
-
-// Login - Đăng nhập
-func (h *Handler) Login(c *gin.Context) {
-	var req request.LoginRequest
+func (h *Handler) RegisterPhone(c *gin.Context) {
+	var req request.RegisterPhoneRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	token, err := h.service.Login(context.TODO(), req.Email, req.Password)
+	user := &models.User{
+		Username: req.Name,
+		Phone:    normalizePhone(req.Phone),
+		Password: req.Password,
+	}
+
+	if err := h.service.Register(context.TODO(), user); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "Đăng ký thành công"})
+}
+
+// Login - Đăng nhập
+func (h *Handler) LoginEmail(c *gin.Context) {
+	var req request.LoginEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	token, err := h.service.LoginEmail(context.TODO(), req.Email, req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
@@ -59,7 +87,21 @@ func (h *Handler) Login(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Đăng nhập thành công"})
 	c.JSON(http.StatusOK, gin.H{"token": token})
 }
+func (h *Handler) LoginPhone(c *gin.Context) {
+	var req request.LoginPhoneRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
+	token, err := h.service.LoginPhone(context.TODO(), normalizePhone(req.Phone), req.Password)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"message": "Đăng nhập thành công"})
+	c.JSON(http.StatusOK, gin.H{"token": token})
+}
 // GetMe - Lấy thông tin người dùng hiện tại
 func (h *Handler) GetMe(c *gin.Context) {
 	userID, exists := c.Get("userID")

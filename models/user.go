@@ -16,11 +16,13 @@ const (
 
 type User struct {
 	// ID chính và thông tin đăng nhập
-	ID       primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-	Username string             `bson:"username" json:"username" validate:"required,alphanum,min=3,max=30"`
-	Email    string             `bson:"email" json:"email" validate:"required,email"`
-	Phone    string             `bson:"phone,omitempty" json:"phone,omitempty" validate:"omitempty,e164"`
-	Password string             `bson:"password,omitempty" json:"password,omitempty"`
+	ID            primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+	Username      string             `bson:"username" json:"username" validate:"required,alphanum,min=3,max=30"`
+	Email         string             `bson:"email" json:"email" validate:"required,email"`
+	Phone         string             `bson:"phone,omitempty" json:"phone,omitempty" validate:"omitempty,e164"`
+	Password      string             `bson:"password,omitempty" json:"password,omitempty"`
+	PhoneVerified bool               `bson:"phoneVerified" json:"phoneVerified"`
+	EmailVerified bool               `bson:"emailVerified" json:"emailVerified"`
 
 	// Thông tin hồ sơ cá nhân
 	DisplayName string     `bson:"displayName,omitempty" json:"displayName,omitempty" validate:"omitempty,max=100"`
@@ -33,20 +35,20 @@ type User struct {
 	Website     string     `bson:"website,omitempty" json:"website,omitempty" validate:"omitempty,url"`
 
 	// Social Graph (quan hệ xã hội)
-	Followers   []primitive.ObjectID `bson:"followers,omitempty" json:"followers,omitempty"`
-	Following   []primitive.ObjectID `bson:"following,omitempty" json:"following,omitempty"`
+	Followers []primitive.ObjectID `bson:"followers,omitempty" json:"followers,omitempty"`
+	Following []primitive.ObjectID `bson:"following,omitempty" json:"following,omitempty"`
 
 	// Đếm follower/following để truy vấn nhanh, tránh count nhiều lần
 	FollowerCount  int `bson:"followerCount" json:"followerCount"`
 	FollowingCount int `bson:"followingCount" json:"followingCount"`
 
 	// **Bạn bè & chặn**
-    FriendRequests []primitive.ObjectID `bson:"friendRequests,omitempty" json:"friendRequests,omitempty"` // đang chờ xác nhận
-    Friends        []primitive.ObjectID `bson:"friends,omitempty" json:"friends,omitempty"`           // đã xác nhận
-    BlockedUsers   []primitive.ObjectID `bson:"blockedUsers,omitempty" json:"blockedUsers,omitempty"` // đã chặn
+	FriendRequests []primitive.ObjectID `bson:"friendRequests,omitempty" json:"friendRequests,omitempty"` // đang chờ xác nhận
+	Friends        []primitive.ObjectID `bson:"friends,omitempty" json:"friends,omitempty"`               // đã xác nhận
+	BlockedUsers   []primitive.ObjectID `bson:"blockedUsers,omitempty" json:"blockedUsers,omitempty"`     // đã chặn
 
-    // Ẩn/hiện trang cá nhân
-    HideProfile    bool                 `bson:"hideProfile" json:"hideProfile"`
+	// Ẩn/hiện trang cá nhân
+	HideProfile bool `bson:"hideProfile" json:"hideProfile"`
 
 	// Bảo mật & quyền hạn
 	Roles      []string   `bson:"roles,omitempty" json:"roles,omitempty"` // vd: ["user","admin"]

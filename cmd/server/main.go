@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/joho/godotenv"
@@ -23,19 +24,18 @@ import (
 )
 
 func main() {
-	// Load biến môi trường từ .env
-	err := godotenv.Load()
-	if err != nil {
+	// Load .env
+	if err := godotenv.Load(); err != nil {
 		log.Println("⚠️ Không tìm thấy file .env hoặc lỗi khi load, dùng biến môi trường hệ thống")
 	}
 
-	// Kết nối MongoDB
+	// MongoDB
 	db, err := config.ConnectMongoDB()
 	if err != nil {
 		log.Fatalf("❌ MongoDB connection failed: %v", err)
 	}
 
-	// Kết nối Redis
+	// Redis
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
 		redisAddr = "localhost:6379"
@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("❌ Redis connection failed: %v", err)
 	}
 
-	// Email sender
+	// Email & SMS Sender
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
 	smtpUser := os.Getenv("SMTP_USERNAME")
@@ -60,69 +60,74 @@ func main() {
 		log.Println("⚠️ SMTP config missing. Using mock email sender")
 	}
 
-	// SMS sender
 	smsSender := sms.NewMockSMSSender()
 	log.Println("✅ Using MockSMS sender")
 
-	// --- Khởi tạo services ---
-
+	// Services & Handlers
 	userRepo := user.NewRepository(db)
-	otpService := otp.NewService(redisClient, emailSender, smsSender)
-	userService := user.NewService(userRepo, otpService.(otp.OTPService), emailSender)
+	otpService := otp.NewService(redisClient, emailSender, smsSender, userRepo)
+	userService := user.NewService(userRepo, otpService, emailSender)
 
 	userHandler := user.NewHandler(userService)
 	otpHandler := otp.NewOTPHandler(otpService)
 
-	// Post
 	postRepo := post.NewPostRepository(db)
 	postService := post.NewPostService(&postRepo)
 	postHandler := post.NewPostHandler(postService)
 
-	// ✅ Comment
 	commentRepo := comment.NewCommentRepository(db)
 	commentService := comment.NewCommentService(commentRepo)
 	commentHandler := comment.NewCommentHandler(commentService)
-	//Notification
+
 	notifRepo := notification.NewNotificationRepository(db)
 	notifService := notification.NewNotificationService(notifRepo)
 	notifHandler := notification.NewNotificationHandler(notifService)
-	//Follow
+
 	followRepo := follow.NewFollowRepository(db)
 	followService := follow.NewFollowService(followRepo, userRepo, notifRepo)
 	followHandler := follow.NewFollowHandler(followService)
 
-	//video
 	videoRepo := video.NewVideoRepository(db)
 	videoService := video.NewVideoService(videoRepo, followRepo, notifRepo)
-	// videoHandler := video.NewVideoHandler(videoService)
-	//short
+
 	shortRepo := short.NewShortRepository(db)
 	shortService := short.NewShortService(shortRepo, followRepo, notifRepo)
-	// shortHandler := short.NewShortHandler(shortService)
 
-	// --- Thiết lập Gin ---
+	// Gin Setup
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
+
+	// ✅ CORS Middleware cho phép React kết nối
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173"}, // FE Vite default
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	if err := r.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {
 		log.Fatalf("❌ Failed to set trusted proxies: %v", err)
 	}
 
 	// Routes
-	r.POST("/register", userHandler.Register)
-	r.POST("/login", userHandler.Login)
+	r.POST("/registerEmail", userHandler.RegisterEmail)
+	r.POST("/registerPhone", userHandler.RegisterPhone)
+	r.POST("/loginEmail", userHandler.LoginEmail)
+	r.POST("/loginPhone", userHandler.LoginPhone)
 
 	routes.UserRoutes(r, db, userHandler)
 	routes.OTProutes(r, otpHandler)
 	routes.PostRoutes(r, postHandler)
-	routes.CommentRoutes(r, db, commentHandler) // ✅ Thêm dòng này
+	routes.CommentRoutes(r, db, commentHandler)
 
 	api := r.Group("/api")
 	routes.FollowRoutes(api, db, followHandler)
 	routes.Video_ShortRoutes(r, videoService, shortService)
 	routes.NotificationRoutes(api, notifHandler)
-	// Start server
+
+	// Run server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

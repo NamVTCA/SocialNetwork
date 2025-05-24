@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"socialnetwork/models"
 	"time"
+	"errors"
 )
 
 type Repository interface {
@@ -28,6 +29,7 @@ type Repository interface {
 	DecrementFollowerCount(ctx context.Context, userID primitive.ObjectID) error
 	IncrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error
 	DecrementFollowingCount(ctx context.Context, userID primitive.ObjectID) error
+	FindByPhone(ctx context.Context, phone string) (*models.User, error)
 }
 
 func (r *repository) FindByID(ctx context.Context, id string) (*models.User, error) {
@@ -68,6 +70,19 @@ func (r *repository) FindByEmail(ctx context.Context, email string) (*models.Use
 	err := r.collection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
 	return &user, err
 }
+
+func (r *repository) FindByPhone(ctx context.Context, phone string) (*models.User, error) {
+	var user models.User
+	err := r.collection.FindOne(ctx, bson.M{"phone": phone}).Decode(&user)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil // hoặc return nil, ErrUserNotFound nếu bạn có định nghĩa sẵn
+		}
+		return nil, err
+	}
+	return &user, nil
+}
+
 
 func (r *repository) GetAllUsers(ctx context.Context) ([]*models.User, error) {
 	cursor, err := r.collection.Find(ctx, bson.M{})
