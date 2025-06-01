@@ -112,10 +112,8 @@ func main() {
 	}
 
 	// Routes
-	r.POST("/registerEmail", userHandler.RegisterEmail)
-	r.POST("/registerPhone", userHandler.RegisterPhone)
-	r.POST("/loginEmail", userHandler.LoginEmail)
-	r.POST("/loginPhone", userHandler.LoginPhone)
+	r.POST("/register", userHandler.Register)
+	r.POST("/login", userHandler.Login)
 
 	routes.UserRoutes(r, db, userHandler)
 	routes.OTProutes(r, otpHandler)

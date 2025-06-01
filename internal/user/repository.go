@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	Create(ctx context.Context, user *models.User) error
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
+	 FindByIdentifier(ctx context.Context, identifier string) (*models.User, error)
 	FindByID(ctx context.Context, id string) (*models.User, error)
 	GetAllUsers(ctx context.Context) ([]*models.User, error)
 	FindAll(ctx context.Context) ([]*models.User, error)
@@ -80,6 +81,27 @@ func (r *repository) FindByPhone(ctx context.Context, phone string) (*models.Use
 		}
 		return nil, err
 	}
+	return &user, nil
+}
+
+func (r *repository) FindByIdentifier(ctx context.Context, identifier string) (*models.User, error) {
+	var user models.User
+
+	filter := bson.M{
+		"$or": []bson.M{
+			{"email": identifier},
+			{"phone": identifier},
+		},
+	}
+
+	err := r.collection.FindOne(ctx, filter).Decode(&user)
+	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return nil, nil // Quan trọng!
+		}
+		return nil, err
+	}
+
 	return &user, nil
 }
 

@@ -2,16 +2,15 @@ package user
 
 import (
 	"context"
-	"net/http"
-	"strconv"
 	"fmt"
-	"strings"
+	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"net/http"
 	"socialnetwork/dto/request"
 	"socialnetwork/dto/response"
 	"socialnetwork/models"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-
-	"github.com/gin-gonic/gin"
+	"strconv"
+	"strings"
 )
 
 type Handler struct {
@@ -29,79 +28,58 @@ func normalizePhone(phone string) string {
 	return phone
 }
 
-// Register - Đăng ký tài khoản
-func (h *Handler) RegisterEmail(c *gin.Context) {
-	var req request.RegisterEmailRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}) // 👈 log chi tiết lỗi
-		return
-	}
-
-	user := &models.User{
-		Username: req.Name,
-		Email:    req.Email,
-		Password: req.Password,
-	}
-
-	if err := h.service.Register(context.TODO(), user); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Đăng ký thành công"})
-}
-func (h *Handler) RegisterPhone(c *gin.Context) {
-	var req request.RegisterPhoneRequest
+// Register - Đăng ký người dùng mới
+func (h *Handler) Register(c *gin.Context) {
+	var req request.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	// Khởi tạo user cơ bản
 	user := &models.User{
 		Username: req.Name,
-		Phone:    normalizePhone(req.Phone),
-		Password: req.Password,
+		Password: req.Password, // sẽ hash ở service
 	}
 
+	// Xác định xem identifier là email hay số điện thoại
+	if strings.Contains(req.Identifier, "@") {
+		user.Email = req.Identifier
+	} else {
+		user.Phone = normalizePhone(req.Identifier)
+	}
+
+	// Gọi service
 	if err := h.service.Register(context.TODO(), user); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "Đăng ký thành công"})
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Đăng ký thành công",
+	})
 }
 
 // Login - Đăng nhập
-func (h *Handler) LoginEmail(c *gin.Context) {
-	var req request.LoginEmailRequest
+func (h *Handler) Login(c *gin.Context) {
+	var req request.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	token, err := h.service.LoginEmail(context.TODO(), req.Email, req.Password)
+	token, err := h.service.Login(context.TODO(), normalizePhone(req.Identifier), req.Password)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Đăng nhập thành công"})
-	c.JSON(http.StatusOK, gin.H{"token": token})
-}
-func (h *Handler) LoginPhone(c *gin.Context) {
-	var req request.LoginPhoneRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	token, err := h.service.LoginPhone(context.TODO(), normalizePhone(req.Phone), req.Password)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"message": "Đăng nhập thành công"})
-	c.JSON(http.StatusOK, gin.H{"token": token})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Đăng nhập thành công",
+		"token":   token,
+	})
 }
+
 // GetMe - Lấy thông tin người dùng hiện tại
 func (h *Handler) GetMe(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -174,7 +152,6 @@ func (h *Handler) GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-
 // UpateMe - Cập nhật thông tin cá nhân
 func (h *Handler) UpdateMe(c *gin.Context) {
 	userID, exists := c.Get("userID")
@@ -199,27 +176,26 @@ func (h *Handler) UpdateMe(c *gin.Context) {
 
 // ChangePassword - Đổi mật khẩu
 func (h *Handler) ChangePassword(c *gin.Context) {
-    userID, exists := c.Get("userID")
-    if !exists {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-        return
-    }
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
 
-    var req request.ChangePasswordRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	var req request.ChangePasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    err := h.service.ChangePassword(c.Request.Context(), userID.(string), &req)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	err := h.service.ChangePassword(c.Request.Context(), userID.(string), &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"message": "Đổi mật khẩu thành công"})
+	c.JSON(http.StatusOK, gin.H{"message": "Đổi mật khẩu thành công"})
 }
-
 
 func (h *Handler) ForgotPassword(c *gin.Context) {
 	var req request.ForgotPasswordRequest
@@ -238,22 +214,22 @@ func (h *Handler) ForgotPassword(c *gin.Context) {
 }
 
 func (h *Handler) ResetPassword(c *gin.Context) {
-    var req request.ResetPasswordRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        fmt.Printf("BindJSON error: %v\n", err)
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
-    // fmt.Printf("Received ResetPasswordRequest: Email=%s, OTP=%s, NewPassword=****\n", req.Email, req.OTP)
+	var req request.ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Printf("BindJSON error: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	// fmt.Printf("Received ResetPasswordRequest: Email=%s, OTP=%s, NewPassword=****\n", req.Email, req.OTP)
 
-    err := h.service.ResetPassword(c.Request.Context(), &req)
-    if err != nil {
-        // fmt.Printf("ResetPassword error: %v\n", err)
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	err := h.service.ResetPassword(c.Request.Context(), &req)
+	if err != nil {
+		// fmt.Printf("ResetPassword error: %v\n", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"message": "Đặt lại mật khẩu thành công"})
+	c.JSON(http.StatusOK, gin.H{"message": "Đặt lại mật khẩu thành công"})
 }
 
 func (h *Handler) ChangeEmailRequest(c *gin.Context) {
@@ -282,8 +258,6 @@ func (h *Handler) ChangeEmailRequest(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Yêu cầu thay đổi email đã được gửi"})
 }
-
-
 
 func (h *Handler) VerifyEmailRequest(c *gin.Context) {
 	var req request.VerifyEmailRequest
@@ -362,94 +336,90 @@ func (h *Handler) SendFriendRequest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Yêu cầu kết bạn đã được gửi"})
 }
 
-
-
 // POST /users/:id/friends/accept
 func (h *Handler) AcceptFriendRequest(c *gin.Context) {
-    // Người đang đăng nhập (phải là người được gửi lời mời)
-    receiverIDStr := c.GetString("userID")
-    if receiverIDStr == "" {
-        c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-        return
-    }
-    receiverID, err := primitive.ObjectIDFromHex(receiverIDStr)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in token"})
-        return
-    }
+	// Người đang đăng nhập (phải là người được gửi lời mời)
+	receiverIDStr := c.GetString("userID")
+	if receiverIDStr == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	receiverID, err := primitive.ObjectIDFromHex(receiverIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in token"})
+		return
+	}
 
-    // Người đã gửi lời mời (truyền qua URL)
-    senderIDStr := c.Param("id")
-    senderID, err := primitive.ObjectIDFromHex(senderIDStr)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in URL"})
-        return
-    }
+	// Người đã gửi lời mời (truyền qua URL)
+	senderIDStr := c.Param("id")
+	senderID, err := primitive.ObjectIDFromHex(senderIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID in URL"})
+		return
+	}
 
-    // Gọi service xử lý
-    if err := h.service.AcceptFriendRequest(c.Request.Context(), receiverID, senderID); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	// Gọi service xử lý
+	if err := h.service.AcceptFriendRequest(c.Request.Context(), receiverID, senderID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"message": "Đã chấp nhận yêu cầu kết bạn"})
+	c.JSON(http.StatusOK, gin.H{"message": "Đã chấp nhận yêu cầu kết bạn"})
 }
-
 
 // POST /users/:id/block
 func (h *Handler) BlockUser(c *gin.Context) {
-    userIDStr := c.GetString("userID")
-    uid, err := primitive.ObjectIDFromHex(userIDStr)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-        return
-    }
+	userIDStr := c.GetString("userID")
+	uid, err := primitive.ObjectIDFromHex(userIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
-    targetIDStr := c.Param("id")
-    targetID, err := primitive.ObjectIDFromHex(targetIDStr)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target ID"})
-        return
-    }
+	targetIDStr := c.Param("id")
+	targetID, err := primitive.ObjectIDFromHex(targetIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target ID"})
+		return
+	}
 
-    if err := h.service.BlockUser(c.Request.Context(), uid, targetID); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	if err := h.service.BlockUser(c.Request.Context(), uid, targetID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"message": "Đã chặn người dùng"})
+	c.JSON(http.StatusOK, gin.H{"message": "Đã chặn người dùng"})
 }
-
 
 // PUT /users/me/hide-profile
 func (h *Handler) ToggleHideProfile(c *gin.Context) {
-    userID := c.GetString("userID")
-    uid, err := primitive.ObjectIDFromHex(userID)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-        return
-    }
+	userID := c.GetString("userID")
+	uid, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
-    var body struct {
-        Hide bool `json:"hide"`
-    }
-    if err := c.ShouldBindJSON(&body); err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	var body struct {
+		Hide bool `json:"hide"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-    if err := h.service.ToggleHideProfile(c.Request.Context(), uid, body.Hide); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+	if err := h.service.ToggleHideProfile(c.Request.Context(), uid, body.Hide); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    status := "hiện"
-    if body.Hide {
-        status = "ẩn"
-    }
+	status := "hiện"
+	if body.Hide {
+		status = "ẩn"
+	}
 
-    c.JSON(http.StatusOK, gin.H{
-        "message": fmt.Sprintf("Đã cập nhật chế độ trang cá nhân thành: %s", status),
-        "hide":    body.Hide, // thêm trạng thái trả về nếu cần
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Đã cập nhật chế độ trang cá nhân thành: %s", status),
+		"hide":    body.Hide, // thêm trạng thái trả về nếu cần
+	})
 }

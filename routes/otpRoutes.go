@@ -8,10 +8,8 @@ import (
 func OTProutes(r *gin.Engine, otpHandler *otp.OTPHandler) {
 	otpGroup := r.Group("/otp")
 	{
-		otpGroup.POST("/sendEmail", otpHandler.SendOTP)
-		otpGroup.POST("/verifyEmail", otpHandler.VerifyOTP)
-		otpGroup.POST("/sendSMS", otpHandler.SendOTP)
-		otpGroup.POST("/verifySMS", otpHandler.VerifyOTP)
+		otpGroup.POST("/send", otpHandler.SendOTP)
+		otpGroup.POST("/verify", otpHandler.VerifyOTP)
 
 	}
 }
